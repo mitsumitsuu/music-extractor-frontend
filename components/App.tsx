@@ -64,7 +64,7 @@ function AppInner() {
   const [filesBy, setFilesBy] = useState<Record<string, UploadFile[]>>({});
   const [view, setView] = useState<View>("extract");
   const [history, setHistory] = useState<HistoryEntry[]>(() => store.loadHistory());
-  const [result, setResult] = useState<{ songs: Song[]; warnings: string[]; meta?: ExtractResponse["meta"]; name: string } | null>(null);
+  const [result, setResult] = useState<{ historyId: string; songs: Song[]; warnings: string[]; meta?: ExtractResponse["meta"]; name: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
@@ -196,9 +196,10 @@ function AppInner() {
         const msg = data?.error ?? (res.status === 413 ? "送信データが大きすぎます。ファイルを減らしてください。" : res.status === 504 ? "処理に時間がかかりすぎました。URLや件数を減らして再試行してください。" : `サーバーエラー（${res.status}）`);
         throw new Error(msg);
       }
-      setResult({ songs: data.songs, warnings: data.warnings, meta: data.meta, name: active.filename || active.name });
+      const historyId = newId();
+      setResult({ historyId, songs: data.songs, warnings: data.warnings, meta: data.meta, name: active.filename || active.name });
       if (data.songs.length) {
-        setHistory((h) => [{ id: newId(), at: Date.now(), presetName: active.name, count: data.songs.length, songs: data.songs }, ...h].slice(0, 20));
+        setHistory((h) => [{ id: historyId, at: Date.now(), presetName: active.name, count: data.songs.length, songs: data.songs }, ...h].slice(0, 20));
         toast(`${data.songs.length}曲を抽出しました`);
       } else toast("曲が見つかりませんでした", "info");
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
@@ -215,13 +216,19 @@ function AppInner() {
   useEffect(() => { startRef.current = start; });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && view === "extract") { e.preventDefault(); void startRef.current(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && view === "extract" && !document.querySelector('[role="dialog"]')) { e.preventDefault(); void startRef.current(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [view]);
 
   const hasUserKey = useMemo(() => ({ youtube: !!keys.youtube, ai: !!(keys.gemini || keys.openai) }), [keys]);
+
+  const updateResultSongs = (songs: Song[]) => {
+    if (!result) return;
+    setResult({ ...result, songs });
+    setHistory((entries) => entries.map((entry) => entry.id === result.historyId ? { ...entry, songs, count: songs.length } : entry));
+  };
 
   const startButton = (
     loading ? (
@@ -311,7 +318,7 @@ function AppInner() {
               </div>
               <div ref={resultsRef} className="min-w-0 scroll-mt-20 lg:col-span-7">
                 {result ? (
-                  <Results songs={result.songs} setSongs={(songs) => setResult({ ...result, songs })} name={result.name} meta={result.meta} warnings={result.warnings} dark={dark} />
+                  <Results key={result.historyId} songs={result.songs} setSongs={updateResultSongs} name={result.name} meta={result.meta} warnings={result.warnings} dark={dark} />
                 ) : (
                   <div className="hidden rounded-3xl border-2 border-dashed border-slate-300 p-10 text-center text-slate-500 dark:border-slate-700 lg:block">
                     <Music2 className="mx-auto mb-3 h-10 w-10 text-indigo-400" />
@@ -339,7 +346,7 @@ function AppInner() {
                   <p className="truncate font-bold">{h.presetName}<span className="ml-2 text-sm font-normal text-slate-500">{h.count}曲</span></p>
                   <p className="text-xs text-slate-500">{new Date(h.at).toLocaleString("ja-JP")}</p>
                 </div>
-                <button onClick={() => { setResult({ songs: h.songs, warnings: [], name: h.presetName }); setView("extract"); }} className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-bold text-white">開く</button>
+                <button onClick={() => { setResult({ historyId: h.id, songs: h.songs, warnings: [], name: h.presetName }); setView("extract"); }} className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-bold text-white">開く</button>
                 <button onClick={() => setHistory((x) => x.filter((y) => y.id !== h.id))} className="grid h-9 w-9 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="履歴を削除"><X className="h-4 w-4" /></button>
               </div>
             ))}

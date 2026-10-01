@@ -1,10 +1,12 @@
 "use client";
 
-import { ArrowUpDown, Copy, ExternalLink, FileImage, FileSpreadsheet, FileText, ListMusic, Play, Printer, Search, Trash2 } from "lucide-react";
+import { ArrowUpDown, Copy, ExternalLink, FileImage, FileSpreadsheet, FileText, ListMusic, Pencil, Play, Printer, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { exportCSV, exportM3U8, exportPNG, exportRekordboxXML, exportXLSX, toTSV, youtubePlaylistUrls } from "@/lib/exporters";
+import { parseYouTube } from "@/lib/parse";
 import type { ExtractResponse, Song } from "@/lib/types";
 import { Card, cx, useToast } from "./ui";
+import { SongEditor } from "./SongEditor";
 
 type SortKey = "index" | "title" | "producer" | "vocal" | "bpm" | "views" | "comments";
 
@@ -13,6 +15,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "index", desc: false });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<Song | null>(null);
 
   const view = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -37,6 +40,19 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
   const toggleSort = (key: SortKey) => setSort((s) => ({ key, desc: s.key === key ? !s.desc : key === "views" || key === "comments" }));
   const toggleSel = (id: string) => setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const allSelected = view.length > 0 && view.every((s) => selected.has(s.id));
+  const toggleVisible = () => setSelected((prev) => {
+    const next = new Set(prev);
+    for (const song of view) {
+      if (allSelected) next.delete(song.id);
+      else next.add(song.id);
+    }
+    return next;
+  });
+  const saveSong = (song: Song) => {
+    setSongs(songs.map((current) => current.id === song.id ? song : current));
+    setEditing(null);
+    toast("曲情報を保存しました（履歴・書き出しにも反映されます）");
+  };
 
   const run = async (fn: () => void | Promise<void>, ok: string) => {
     try { await fn(); toast(ok); } catch { toast("書き出しに失敗しました", "err"); }
@@ -106,6 +122,14 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="結果を検索（曲名・P名・ボカロ）" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-base outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950 sm:text-sm" />
         </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          <label className="flex cursor-pointer items-center gap-2 font-bold text-slate-600 dark:text-slate-300">
+            <input type="checkbox" aria-label="表示中の曲をすべて選択" checked={allSelected} disabled={!view.length} onChange={toggleVisible} className="h-4 w-4 accent-indigo-600" />
+            表示中の{view.length}曲を選択
+          </label>
+          {selected.size > 0 && <button onClick={() => setSelected(new Set())} className="text-xs font-bold text-indigo-600 hover:underline dark:text-indigo-300">選択を解除</button>}
+          <span className="text-xs text-slate-500">各曲の「編集」で情報を補正できます</span>
+        </div>
         <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
           <span>書き出し対象: <b className="text-slate-700 dark:text-slate-200">{targetLabel}</b></span>
           {selected.size > 0 && (
@@ -128,7 +152,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
         <table className="w-full text-left text-sm">
           <thead className="border-b-2 border-slate-200 text-slate-500 dark:border-slate-700">
             <tr>
-              <th className="w-10 px-3 py-2.5 print:hidden"><input type="checkbox" aria-label="すべて選択" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(view.map((s) => s.id)))} className="h-4 w-4 accent-indigo-600" /></th>
+              <th className="w-10 px-3 py-2.5 print:hidden"><input type="checkbox" aria-label="すべて選択" checked={allSelected} disabled={!view.length} onChange={toggleVisible} className="h-4 w-4 accent-indigo-600" /></th>
               {th("index", "#", "w-12")}
               {th("title", "曲名")}
               {th("producer", "ボカロP")}
@@ -138,6 +162,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
               <th className="whitespace-nowrap px-3 py-2.5 font-bold">MMD</th>
               {th("views", "再生数", "text-right")}
               <th className="whitespace-nowrap px-3 py-2.5 font-bold print:hidden">リンク</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-bold print:hidden">編集</th>
             </tr>
           </thead>
           <tbody>
@@ -153,6 +178,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
                 <td className="px-3 py-2.5">{s.mmd ?? "-"}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{fmt(s.views)}</td>
                 <td className="min-w-[7rem] px-3 py-2.5 print:hidden"><LinkChips s={s} /></td>
+                <td className="px-3 py-2.5 print:hidden"><button onClick={() => setEditing(s)} aria-label={`${s.title}の曲情報を編集`} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-slate-100 px-2.5 py-2 font-bold text-indigo-700 hover:bg-indigo-100 dark:bg-slate-800 dark:text-indigo-300"><Pencil className="h-3.5 w-3.5" />編集</button></td>
               </tr>
             ))}
           </tbody>
@@ -166,7 +192,10 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
             <div className="flex items-start gap-3">
               <input type="checkbox" aria-label={`${s.title}を選択`} checked={selected.has(s.id)} onChange={() => toggleSel(s.id)} className="mt-1 h-5 w-5 shrink-0 accent-indigo-600" />
               <div className="min-w-0 flex-1">
-                <p className="font-bold leading-snug">{s.title}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 break-words font-bold leading-snug">{s.title}</p>
+                  <button onClick={() => setEditing(s)} aria-label={`${s.title}の曲情報を編集`} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:bg-slate-800 dark:text-indigo-300"><Pencil className="h-3.5 w-3.5" />編集</button>
+                </div>
                 <p className="mt-0.5 text-sm text-slate-500">{[s.producer, s.vocal].filter(Boolean).join(" ・ ") || "-"}</p>
                 <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
                   {s.bpm && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 dark:bg-slate-800">BPM {s.bpm}</span>}
@@ -181,13 +210,14 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
         ))}
       </ul>
       {view.length === 0 && <p className="py-8 text-center text-sm text-slate-500">該当する曲がありません</p>}
+      {editing && <SongEditor key={editing.id} song={editing} onSave={saveSong} onClose={() => setEditing(null)} />}
     </Card>
   );
 }
 
 function LinkChips({ s }: { s: Song }) {
   const items = [
-    { href: s.links.youtube, label: s.url ? "YouTube" : "YouTube検索" },
+    { href: s.links.youtube, label: s.url ? (parseYouTube(s.url).videoId ? "YouTube" : "楽曲リンク") : "YouTube検索" },
     s.links.lyrics && { href: s.links.lyrics, label: "歌詞" },
     s.links.analysis && { href: s.links.analysis, label: "考察" },
     s.links.tunebat && { href: s.links.tunebat, label: "Tunebat" },
