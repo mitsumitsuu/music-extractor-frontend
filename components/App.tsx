@@ -271,7 +271,7 @@ function AppInner() {
                 <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide" ref={groupRef}>
                   <Reorder.Group as="div" axis="x" values={presets} onReorder={setPresets} className="flex w-max gap-2 py-1">
                     {presets.map((p) => (
-                      <Reorder.Item key={p.id} value={p} as="div" dragListener={finePointer && renaming !== p.id} dragConstraints={groupRef} dragElastic={0.05}
+                      <Reorder.Item key={p.id} value={p} as="div" dragListener={finePointer && renaming !== p.id}
                         className={cx("flex shrink-0 items-center rounded-full border text-sm font-bold transition", p.id === active.id ? "border-indigo-600 bg-indigo-600 text-white shadow" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300")}>
                         {renaming === p.id ? (
                           <input autoFocus defaultValue={p.name} maxLength={40} onPointerDown={(e) => e.stopPropagation()}
@@ -303,13 +303,13 @@ function AppInner() {
               </div>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-12 lg:items-start">
-              <div className="lg:col-span-5 print:hidden">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
+              <div className="min-w-0 lg:col-span-5 print:hidden">
                 <ExtractForm preset={active} update={update} files={files} setFiles={(f) => setFilesBy((x) => ({ ...x, [active.id]: f }))} health={health} hasUserKey={hasUserKey} />
                 {error && <p role="alert" className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">{error}</p>}
                 <div className="mt-4 hidden md:block">{startButton}</div>
               </div>
-              <div ref={resultsRef} className="scroll-mt-20 lg:sticky lg:top-20 lg:col-span-7">
+              <div ref={resultsRef} className="min-w-0 scroll-mt-20 lg:col-span-7">
                 {result ? (
                   <Results songs={result.songs} setSongs={(songs) => setResult({ ...result, songs })} name={result.name} meta={result.meta} warnings={result.warnings} dark={dark} />
                 ) : (

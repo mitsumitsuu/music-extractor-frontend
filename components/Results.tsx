@@ -70,7 +70,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
   ];
 
   const th = (key: SortKey, label: string, cls = "") => (
-    <th className={cx("px-3 py-2.5 font-bold", cls)}>
+    <th className={cx("whitespace-nowrap px-3 py-2.5 font-bold", cls)}>
       <button onClick={() => toggleSort(key)} className="inline-flex items-center gap-1 hover:text-indigo-600">
         {label}
         <ArrowUpDown className={cx("h-3.5 w-3.5", sort.key === key ? "text-indigo-600" : "opacity-40")} />
@@ -134,10 +134,10 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
               {th("producer", "ボカロP")}
               {th("vocal", "合成音声")}
               {th("bpm", "BPM")}
-              <th className="px-3 py-2.5 font-bold">Key</th>
-              <th className="px-3 py-2.5 font-bold">MMD</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-bold">Key</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-bold">MMD</th>
               {th("views", "再生数", "text-right")}
-              <th className="px-3 py-2.5 font-bold print:hidden">リンク</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-bold print:hidden">リンク</th>
             </tr>
           </thead>
           <tbody>
@@ -145,14 +145,14 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
               <tr key={s.id} className={cx("border-b border-slate-100 align-top hover:bg-indigo-50/60 dark:border-slate-800 dark:hover:bg-indigo-500/5", selected.has(s.id) && "bg-indigo-50 dark:bg-indigo-500/10")}>
                 <td className="px-3 py-2.5 print:hidden"><input type="checkbox" aria-label={`${s.title}を選択`} checked={selected.has(s.id)} onChange={() => toggleSel(s.id)} className="h-4 w-4 accent-indigo-600" /></td>
                 <td className="px-3 py-2.5 tabular-nums text-slate-400">{songs.indexOf(s) + 1}</td>
-                <td className="px-3 py-2.5 font-bold">{s.title}</td>
-                <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{s.producer ?? "-"}</td>
-                <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{s.vocal ?? "-"}</td>
+                <td className="min-w-[9rem] px-3 py-2.5 font-bold">{s.title}</td>
+                <td className="min-w-[6rem] px-3 py-2.5 text-slate-600 dark:text-slate-300">{s.producer ?? "-"}</td>
+                <td className="min-w-[6rem] px-3 py-2.5 text-slate-600 dark:text-slate-300">{s.vocal ?? "-"}</td>
                 <td className="px-3 py-2.5 tabular-nums">{s.bpm ?? "-"}</td>
                 <td className="px-3 py-2.5">{s.key ?? "-"}</td>
                 <td className="px-3 py-2.5">{s.mmd ?? "-"}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{fmt(s.views)}</td>
-                <td className="px-3 py-2.5 print:hidden"><LinkChips s={s} /></td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{fmt(s.views)}</td>
+                <td className="min-w-[7rem] px-3 py-2.5 print:hidden"><LinkChips s={s} /></td>
               </tr>
             ))}
           </tbody>
