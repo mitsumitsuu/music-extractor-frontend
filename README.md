@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 楽曲抽出システム v2
 
-## Getting Started
+YouTube（動画・プレイリスト）/ SoundCloud / ランキングページ / テキスト / CSV・Excel / PDF・画像 から
+ボカロ曲を抽出し、絞り込み・Excel/CSV/画像/PDF/M3U8/rekordbox XML への書き出し・YouTube連続再生プレイリスト作成ができる Web アプリです。
 
-First, run the development server:
+- フロント・API ともに Next.js（App Router）。**Vercel だけで完結**します（以前の `127.0.0.1:8000` の FastAPI は不要）。
+- PC・スマホ両対応のレスポンシブ UI（スマホは下部に操作バー、ホーム画面に追加でアプリ化＝PWA）。
+- プリセット・履歴・設定はブラウザに自動保存。バックアップ(JSON)で端末間移行。
 
+## モード
+| モード | 必要なキー | 内容 |
+|---|---|---|
+| ⚡ 高速 | なし | 動画タイトル・テキストを規則ベースで解析 |
+| ✨ AI抽出 | Gemini または OpenAI | 資料全体（Webページ・PDF・画像含む）をAIが解析。BPM/Key/MMD/テーマ判定 |
+| 📊 統計 | YouTube Data API | 再生数・コメント数で絞り込み（URLの無い曲は先頭20曲まで自動検索） |
+
+AIエンジンは「おまかせ」で Gemini を優先し、失敗時は ChatGPT に自動フォールバックします。
+
+## API
+- `POST /api/extract` … 抽出本体
+- `GET /api/health` … サーバー側に設定済みのキーの有無
+- `POST /api/contact` … お問い合わせ（宛先は環境変数 `CONTACT_EMAIL`）
+
+## 開発
 ```bash
+npm install
+cp .env.example .env.local   # 必要なキーを記入
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## デプロイ
+GitHub の `main` に push すると Vercel が自動デプロイします。環境変数は `.env.example` を参照して Vercel に設定してください。

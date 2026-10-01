@@ -1,2 +1,0 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-const fs=require('fs');const s=fs.readFileSync('app/page.tsx','utf8');const lines=s.split('\n');const stack=[];for(let i=0;i<lines.length;i++){const l=lines[i];const openMatches=l.match(/<div(\s|>|\{)/g)||[];const closeMatches=l.match(/<\/div>/g)||[]; for(let k=0;k<openMatches.length;k++){stack.push({line:i+1, text:l.trim()}); } for(let k=0;k<closeMatches.length;k++){stack.pop(); }} console.log('remaining',stack.length); if(stack.length) console.log(stack.slice(-10));

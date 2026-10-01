@@ -1,2 +1,0 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-const fs=require('fs');const s=fs.readFileSync('app/page.tsx','utf8');const lines=s.split('\n');lines.forEach((l,i)=>{if(l.indexOf('<>')!==-1)console.log('OPEN',i+1, l.trim()); if(l.indexOf('</>')!==-1)console.log('CLOSE',i+1, l.trim());});console.log('---done');

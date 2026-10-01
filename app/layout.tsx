@@ -1,30 +1,34 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { BIZ_UDPGothic } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const ud = BIZ_UDPGothic({ weight: ["400", "700"], subsets: ["latin"], display: "swap", variable: "--font-ud", preload: false });
 
 export const metadata: Metadata = {
   title: "楽曲抽出システム",
-  description: "Ultimate Edition",
+  description: "YouTube・ランキング・PDF/画像からボカロ曲を抽出し、プレイリストやExcelに書き出すツール",
+  applicationName: "楽曲抽出システム",
+  appleWebApp: { capable: true, title: "楽曲抽出", statusBarStyle: "default" },
+  formatDetection: { telephone: false },
 };
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f1f5f9",
+};
+
+// 初回描画前にダークモードを適用（画面のチラつき防止）
+const themeScript = `try{var p=JSON.parse(localStorage.getItem('mx:prefs:v2')||'{}');var t=p.theme||'system';if(t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark')}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="ja"
-      suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body suppressHydrationWarning className="min-h-full flex flex-col">{children}</body>
+    <html lang="ja" suppressHydrationWarning className={`${ud.variable} antialiased`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }
