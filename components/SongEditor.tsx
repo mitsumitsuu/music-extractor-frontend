@@ -28,7 +28,7 @@ export function SongEditor({ song, onSave, onClose }: { song: Song; onSave: (son
   };
 
   return (
-    <Modal open onClose={onClose} title="楽曲情報を編集" wide>
+    <Modal open onClose={onClose} title="楽曲情報を編集" size="lg">
       <form onSubmit={save} noValidate onKeyDown={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
           event.preventDefault();

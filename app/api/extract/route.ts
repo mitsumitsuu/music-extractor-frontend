@@ -1,8 +1,9 @@
 import { extractWithAi } from "@/lib/server/ai";
-import { guard } from "@/lib/server/guard";
+import { canUseServerKeys, guard } from "@/lib/server/guard";
 import { fetchPageText, fetchPlaylistIds, fetchPlaylistIdsKeyless, fetchVideos, oembed, searchVideo, searchVideoKeyless, type VideoInfo } from "@/lib/server/youtube";
 import { applyFilters, buildLinks, dedupe, parseDescription, parseTextBlock, parseTitleLine, parseYouTube, songKey } from "@/lib/parse";
-import type { ExtractRequest, ExtractResponse, Song } from "@/lib/types";
+import { sanitizeExtractRequest } from "@/lib/sanitize";
+import type { ExtractResponse, Song } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,34 +17,31 @@ const MAX_KEYLESS_SEARCH = 40;
 
 type Candidate = Omit<Song, "id" | "links">;
 
-const bad = (msg: string, status = 400) => Response.json({ error: msg }, { status });
+const bad = (msg: string, status = 400) => Response.json({ error: msg }, { status, headers: { "Cache-Control": "no-store" } });
 
 export async function POST(req: Request) {
-  const blocked = guard(req);
-  if (blocked) return blocked;
+  const access = await guard(req);
+  if (access.error) return access.error;
   const started = Date.now();
 
-  let body: ExtractRequest;
+  let raw: unknown;
   try {
-    body = (await req.json()) as ExtractRequest;
+    raw = await req.json();
   } catch {
     return bad("リクエストの形式が正しくありません。");
   }
-
-  const urls = (body.urls ?? []).map((u) => u.trim()).filter((u) => /^https?:\/\//i.test(u)).slice(0, MAX_URLS);
-  const text = (body.text ?? "").slice(0, MAX_TEXT);
-  const files = (body.files ?? []).slice(0, 10);
-  const mode = body.mode ?? "fast";
-  const filters = body.filters;
-  if (!filters) return bad("フィルター設定がありません。");
+  const body = sanitizeExtractRequest(raw, { maxUrls: MAX_URLS, maxText: MAX_TEXT, maxFiles: 10 });
+  const { urls, text, files, mode, filters } = body;
   const totalFileBytes = files.reduce((n, f) => n + (f.data ? (f.data.length * 3) / 4 : (f.text ?? "").length), 0);
   if (totalFileBytes > MAX_FILE_BYTES) return bad("ファイルの合計サイズが大きすぎます（4MBまで）。");
   if (!urls.length && !text.trim() && !files.length) return bad("解析するURL・テキスト・ファイルのいずれかを入力してください。");
 
+  // 本人のキーを優先。サーバーのキーは許可された利用者だけ（lib/server/guard.ts）
+  const server = canUseServerKeys(access.viewer);
   const keys = {
-    youtube: body.keys?.youtube?.trim() || process.env.YOUTUBE_API_KEY,
-    gemini: body.keys?.gemini?.trim() || process.env.GEMINI_API_KEY,
-    openai: body.keys?.openai?.trim() || process.env.OPENAI_API_KEY,
+    youtube: body.keys?.youtube || (server ? process.env.YOUTUBE_API_KEY : undefined),
+    gemini: body.keys?.gemini || (server ? process.env.GEMINI_API_KEY : undefined),
+    openai: body.keys?.openai || (server ? process.env.OPENAI_API_KEY : undefined),
   };
   const hasAi = !!(keys.gemini || keys.openai);
   if (mode === "ai" && !hasAi) return bad("AI抽出モードには Gemini または OpenAI のAPIキーが必要です（設定 → APIキー）。");

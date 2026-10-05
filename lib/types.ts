@@ -100,11 +100,19 @@ export type ExtractResponse = {
 };
 
 export type HealthResponse = {
+  /** この利用者がサーバー側のキーを使えるか */
   youtube: boolean;
   gemini: boolean;
   openai: boolean;
   passcodeRequired: boolean;
   contact: boolean;
+  auth: {
+    /** Google ログインが設定済みか */
+    enabled: boolean;
+    /** 抽出・お問い合わせにログインが必要か */
+    required: boolean;
+    user: { email: string; name: string } | null;
+  };
 };
 
 export const DEFAULT_FILTERS: Filters = {

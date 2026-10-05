@@ -1,5 +1,6 @@
 // 抽出結果の書き出し（ブラウザ専用）
 import { csvCell, xmlEscape, buildYouTubePlaylistUrls, parseYouTube } from "./parse";
+import { SETLIST_COLUMNS, setlistRows, setlistsToJSON, type Setlist } from "./setlist";
 import type { Song } from "./types";
 
 const COLS: { label: string; get: (s: Song) => string | number | undefined }[] = [
@@ -147,4 +148,19 @@ export function exportPNG(songs: Song[], name: string, dark: boolean) {
 /** JSON バックアップ */
 export function exportJSON(data: unknown, filename: string) {
   download(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), filename);
+}
+
+/* ---------- セトリ ---------- */
+
+export async function exportSetlistXLSX(sl: Setlist) {
+  const XLSX = await import("xlsx");
+  const ws = XLSX.utils.aoa_to_sheet<string | number>([[...SETLIST_COLUMNS], ...setlistRows(sl)]);
+  ws["!cols"] = [{ wch: 5 }, { wch: 10 }, { wch: 32 }, { wch: 18 }, { wch: 16 }, { wch: 6 }, { wch: 12 }, { wch: 6 }, { wch: 8 }, { wch: 8 }, { wch: 30 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "セトリ");
+  XLSX.writeFile(wb, `${safeName(sl.name)}.xlsx`);
+}
+
+export function exportSetlistsJSON(list: Setlist[], name: string) {
+  download(new Blob([setlistsToJSON(list)], { type: "application/json" }), `${safeName(name)}.json`);
 }

@@ -12,21 +12,60 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
-body {
-  background: #f1f5f9;
-  color: #0f172a;
-  font-family: var(--font-sans);
-  overscroll-behavior-y: none;
-}
-.dark body {
-  background: #0b1120;
-  color: #e2e8f0;
-}
+/* 色の基本トークン（タブの面と本文の面を一致させるために CSS からも参照） */
 :root {
   color-scheme: light;
+  --surface: #ffffff;
+  --page: #f1f5f9;
+  --focus: #4338ca;
 }
 .dark {
   color-scheme: dark;
+  --surface: #0f172a;
+  --page: #0b1120;
+  --focus: #a5b4fc;
+}
+
+body {
+  background: var(--page);
+  color: #0f172a;
+  font-family: var(--font-sans);
+  line-height: 1.7; /* デジタル庁デザインシステム: 本文の行間は 1.7 前後 */
+  overscroll-behavior-y: none;
+}
+.dark body {
+  color: #e2e8f0;
+}
+
+/* キーボード操作時のフォーカス表示をはっきり見せる（WCAG 2.4.7 / 2.4.11） */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+:where(input, select, textarea):focus-visible {
+  outline-offset: 0;
+}
+
+/* Chrome 風タブ: 選択中タブの下端を本文の面へ滑らかにつなぐ（逆向きの角丸） */
+.chrome-tab.is-active::before,
+.chrome-tab.is-active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+}
+.chrome-tab.is-active::before {
+  left: -12px;
+  background: radial-gradient(circle at 0 0, transparent 11.5px, var(--surface) 12px);
+}
+.chrome-tab.is-active::after {
+  right: -12px;
+  background: radial-gradient(circle at 100% 0, transparent 11.5px, var(--surface) 12px);
+}
+.chrome-tab.is-active.is-first::before {
+  display: none;
 }
 
 .scrollbar-hide::-webkit-scrollbar {

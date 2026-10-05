@@ -1,4 +1,5 @@
 // YouTube / SoundCloud / 一般Webページからの情報取得（サーバー専用）
+import { safeFetchHtml } from "./safe-fetch";
 
 const YT = "https://www.googleapis.com/youtube/v3";
 
@@ -98,16 +99,12 @@ export async function oembed(url: string, signal?: AbortSignal): Promise<{ title
   }
 }
 
-/** 一般ページ（ランキングサイト等）の本文テキストを取得 */
+/** 一般ページ（ランキングサイト等）の本文テキストを取得（SSRF 対策は safe-fetch.ts） */
 export async function fetchPageText(url: string, signal?: AbortSignal): Promise<{ title: string; text: string } | null> {
   try {
-    const u = new URL(url);
-    if (!/^https?:$/.test(u.protocol)) return null;
-    // SSRF 対策: ローカル/プライベートアドレスは拒否
-    if (/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|0\.|\[?::1\]?)/.test(u.hostname)) return null;
-    const res = await fetch(u, { signal, redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (music-extractor)", "Accept-Language": "ja" } });
-    if (!res.ok || !(res.headers.get("content-type") ?? "").includes("html")) return null;
-    const html = (await res.text()).slice(0, 2_000_000);
+    const page = await safeFetchHtml(url, signal);
+    if (!page) return null;
+    const html = page.html;
     const title = (html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "").trim();
     const text = html
       .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, " ")

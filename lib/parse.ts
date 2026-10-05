@@ -217,6 +217,14 @@ function normKey(k: string): string {
   return enh[s] ?? s;
 }
 
+const CAMELOT_BY_KEY: Record<string, string> = Object.fromEntries(Object.entries(KEY_ALIASES).map(([code, key]) => [key, code.toUpperCase()]));
+
+/** Key（"Am" / "F#m" / "8A" / "C major" など）を Camelot 表記（"8A"）に変換。判定できなければ undefined */
+export function camelotOf(key?: string): string | undefined {
+  if (!key?.trim()) return undefined;
+  return CAMELOT_BY_KEY[normKey(key)];
+}
+
 const splitWords = (s: string) => normalize(s).split(/[,、，]\s*/).map((w) => w.trim()).filter(Boolean);
 
 /** フィルタ適用。除外理由を集計して返す */

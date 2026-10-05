@@ -1,25 +1,53 @@
 "use client";
 
-import { ArrowUpDown, Copy, ExternalLink, FileImage, FileSpreadsheet, FileText, ListMusic, Pencil, Play, Printer, Search, Trash2 } from "lucide-react";
+import { ArrowUpDown, CalendarPlus, Check, Copy, ExternalLink, FileImage, FileSpreadsheet, FileText, History, ListMusic, Pencil, Play, Printer, Search, Shuffle, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { exportCSV, exportM3U8, exportPNG, exportRekordboxXML, exportXLSX, toTSV, youtubePlaylistUrls } from "@/lib/exporters";
-import { parseYouTube } from "@/lib/parse";
+import { parseYouTube, songKey } from "@/lib/parse";
+import type { Setlist } from "@/lib/setlist";
+import { pickRandom } from "@/lib/stats";
 import type { ExtractResponse, Song } from "@/lib/types";
 import { Card, cx, useToast } from "./ui";
+import { ResultsStats } from "./ResultsStats";
+import { SetlistAddModal, type SetlistTarget } from "./SetlistAddModal";
 import { SongEditor } from "./SongEditor";
 
 type SortKey = "index" | "title" | "producer" | "vocal" | "bpm" | "views" | "comments";
 
-export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs: Song[]; setSongs: (s: Song[]) => void; name: string; meta?: ExtractResponse["meta"]; warnings: string[]; dark: boolean }) {
+const PERFORMED_BADGE = "inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200";
+const EMPTY_KEYS: Set<string> = new Set();
+
+type ResultsProps = {
+  songs: Song[];
+  setSongs: (s: Song[]) => void;
+  name: string;
+  meta?: ExtractResponse["meta"];
+  warnings: string[];
+  dark: boolean;
+  /** 演奏済みリストの曲名キー（songKey） */
+  performedKeys?: Set<string>;
+  onOpenPerformed?: () => void;
+  setlists?: Setlist[];
+  onAddToSetlist?: (songs: Song[], target: SetlistTarget) => void;
+};
+
+export function Results({ songs, setSongs, name, meta, warnings, dark, performedKeys = EMPTY_KEYS, onOpenPerformed, setlists = [], onAddToSetlist }: ResultsProps) {
   const toast = useToast();
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "index", desc: false });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<Song | null>(null);
+  const [hidePerformed, setHidePerformed] = useState(false);
+  const [randomN, setRandomN] = useState("5");
+  const [addOpen, setAddOpen] = useState(false);
+
+  // 元の並び順（行番号用）。行ごとに indexOf すると曲数の2乗の計算になるので先に作る
+  const order = useMemo(() => new Map(songs.map((s, i) => [s.id, i + 1])), [songs]);
+  const performedIds = useMemo(() => new Set(performedKeys.size ? songs.filter((s) => performedKeys.has(songKey(s.title))).map((s) => s.id) : []), [songs, performedKeys]);
 
   const view = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const list = songs.map((s, i) => ({ s, i })).filter(({ s }) => !needle || `${s.title} ${s.producer ?? ""} ${s.vocal ?? ""} ${s.key ?? ""}`.toLowerCase().includes(needle));
+    const list = songs.map((s, i) => ({ s, i })).filter(({ s }) => !(hidePerformed && performedIds.has(s.id))).filter(({ s }) => !needle || `${s.title} ${s.producer ?? ""} ${s.vocal ?? ""} ${s.key ?? ""}`.toLowerCase().includes(needle));
     if (sort.key !== "index") {
       const k = sort.key;
       list.sort((a, b) => {
@@ -32,10 +60,10 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
       });
     } else if (sort.desc) list.reverse();
     return list.map((x) => x.s);
-  }, [songs, q, sort]);
+  }, [songs, q, sort, hidePerformed, performedIds]);
 
   const target = selected.size ? songs.filter((s) => selected.has(s.id)) : view;
-  const targetLabel = selected.size ? `選択中の${selected.size}曲` : q ? `表示中の${view.length}曲` : `全${songs.length}曲`;
+  const targetLabel = selected.size ? `選択中の${selected.size}曲` : q || hidePerformed ? `表示中の${view.length}曲` : `全${songs.length}曲`;
 
   const toggleSort = (key: SortKey) => setSort((s) => ({ key, desc: s.key === key ? !s.desc : key === "views" || key === "comments" }));
   const toggleSel = (id: string) => setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -72,6 +100,18 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
   const removeSelected = () => {
     setSongs(songs.filter((s) => !selected.has(s.id)));
     setSelected(new Set());
+  };
+  const pickN = () => {
+    const n = Math.floor(Number(randomN));
+    if (!view.length) { toast("対象の曲がありません", "err"); return; }
+    if (!Number.isFinite(n) || n < 1) { toast("1以上の曲数を入力してください", "err"); return; }
+    const picked = pickRandom(view, n);
+    setSelected(new Set(picked.map((x) => x.id)));
+    toast(n > view.length ? `表示中の${view.length}曲すべてを選びました` : `表示中の曲からランダムに${picked.length}曲を選びました`, "info");
+  };
+  const addToSetlist = (t: SetlistTarget) => {
+    setAddOpen(false);
+    onAddToSetlist?.(target, t);
   };
   const fmt = (n?: number) => (n === undefined ? "-" : n.toLocaleString("ja-JP"));
 
@@ -119,8 +159,8 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
 
       <div className="mt-4 flex flex-col gap-3 print:hidden">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="結果を検索（曲名・P名・ボカロ）" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-base outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950 sm:text-sm" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden />
+          <input type="search" aria-label="結果を検索" value={q} onChange={(e) => setQ(e.target.value)} placeholder="結果を検索（曲名・P名・ボカロ）" className="min-h-11 w-full rounded-xl border border-slate-400 bg-white py-2.5 pl-9 pr-3 text-base outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-950 sm:text-sm" />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           <label className="flex cursor-pointer items-center gap-2 font-bold text-slate-600 dark:text-slate-300">
@@ -138,6 +178,31 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
             </button>
           )}
         </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+          {onAddToSetlist && (
+            <button onClick={() => setAddOpen(true)} disabled={!target.length} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-40">
+              <CalendarPlus className="h-4 w-4" />セトリに追加<span className="font-normal opacity-80">（{targetLabel}）</span>
+            </button>
+          )}
+          <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 py-1 pl-3 pr-1 dark:border-slate-700">
+            <Shuffle className="h-4 w-4 text-slate-500" />
+            <label htmlFor="random-n" className="text-xs font-bold text-slate-600 dark:text-slate-300">ランダムに</label>
+            <input id="random-n" type="number" inputMode="numeric" min={1} max={999} value={randomN} onChange={(e) => setRandomN(e.target.value)} onKeyDown={(e) => e.key === "Enter" && pickN()} className="w-14 rounded-lg border border-slate-300 bg-white px-2 py-1 text-base tabular-nums dark:border-slate-700 dark:bg-slate-950 sm:text-sm" />
+            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">曲</span>
+            <button onClick={pickN} disabled={!view.length} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-40 dark:bg-slate-800 dark:text-indigo-300">選ぶ</button>
+          </span>
+        </div>
+        {(performedKeys.size > 0 || onOpenPerformed) && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <label className={cx("flex items-center gap-2 font-bold", performedKeys.size ? "cursor-pointer text-slate-700 dark:text-slate-300" : "text-slate-500")}>
+              <input type="checkbox" checked={hidePerformed} disabled={!performedKeys.size} onChange={(e) => setHidePerformed(e.target.checked)} className="h-4 w-4 accent-indigo-600" />
+              演奏済みを隠す
+            </label>
+            <span className="text-xs text-slate-500">{performedKeys.size ? `演奏済み ${performedIds.size}曲${hidePerformed && performedIds.size ? "を非表示中" : "（一覧にバッジ表示）"}` : "演奏済みリストは未登録です"}</span>
+            {onOpenPerformed && <button onClick={onOpenPerformed} className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:underline dark:text-indigo-300"><History className="h-3.5 w-3.5" />演奏済みリストを編集</button>}
+          </div>
+        )}
+        <ResultsStats songs={view} label={`表示中の${view.length}曲`} />
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-hide">
           {exportBtns.map((b) => (
             <button key={b.label} onClick={b.on} className={cx("flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white shadow-sm", b.cls)}>
@@ -169,8 +234,8 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
             {view.map((s) => (
               <tr key={s.id} className={cx("border-b border-slate-100 align-top hover:bg-indigo-50/60 dark:border-slate-800 dark:hover:bg-indigo-500/5", selected.has(s.id) && "bg-indigo-50 dark:bg-indigo-500/10")}>
                 <td className="px-3 py-2.5 print:hidden"><input type="checkbox" aria-label={`${s.title}を選択`} checked={selected.has(s.id)} onChange={() => toggleSel(s.id)} className="h-4 w-4 accent-indigo-600" /></td>
-                <td className="px-3 py-2.5 tabular-nums text-slate-400">{songs.indexOf(s) + 1}</td>
-                <td className="min-w-[9rem] px-3 py-2.5 font-bold">{s.title}</td>
+                <td className="px-3 py-2.5 tabular-nums text-slate-500 dark:text-slate-400">{order.get(s.id)}</td>
+                <td className="min-w-[9rem] px-3 py-2.5 font-bold">{s.title}{performedIds.has(s.id) && <span className={cx(PERFORMED_BADGE, "ml-2 align-middle")}><Check className="h-3 w-3" />演奏済み</span>}</td>
                 <td className="min-w-[6rem] px-3 py-2.5 text-slate-600 dark:text-slate-300">{s.producer ?? "-"}</td>
                 <td className="min-w-[6rem] px-3 py-2.5 text-slate-600 dark:text-slate-300">{s.vocal ?? "-"}</td>
                 <td className="px-3 py-2.5 tabular-nums">{s.bpm ?? "-"}</td>
@@ -193,7 +258,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
               <input type="checkbox" aria-label={`${s.title}を選択`} checked={selected.has(s.id)} onChange={() => toggleSel(s.id)} className="mt-1 h-5 w-5 shrink-0 accent-indigo-600" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 break-words font-bold leading-snug">{s.title}</p>
+                  <p className="min-w-0 break-words font-bold leading-snug">{s.title}{performedIds.has(s.id) && <span className={cx(PERFORMED_BADGE, "ml-1.5 align-middle")}><Check className="h-3 w-3" />演奏済み</span>}</p>
                   <button onClick={() => setEditing(s)} aria-label={`${s.title}の曲情報を編集`} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:bg-slate-800 dark:text-indigo-300"><Pencil className="h-3.5 w-3.5" />編集</button>
                 </div>
                 <p className="mt-0.5 text-sm text-slate-500">{[s.producer, s.vocal].filter(Boolean).join(" ・ ") || "-"}</p>
@@ -210,6 +275,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark }: { songs
         ))}
       </ul>
       {view.length === 0 && <p className="py-8 text-center text-sm text-slate-500">該当する曲がありません</p>}
+      {onAddToSetlist && <SetlistAddModal open={addOpen} onClose={() => setAddOpen(false)} songs={target} label={targetLabel} setlists={setlists} onAdd={addToSetlist} />}
       {editing && <SongEditor key={editing.id} song={editing} onSave={saveSong} onClose={() => setEditing(null)} />}
     </Card>
   );
