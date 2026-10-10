@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toNumberOrEmpty } from "@/lib/parse";
 import type { Filters, HealthResponse, Preset, UploadFile } from "@/lib/types";
 import { Card, Field, Segmented, Switch, btn, cx, inputCls, useToast } from "./ui";
+import { VoiceInput } from "./VoiceInput";
 
 const MAX_TOTAL = 4 * 1024 * 1024;
 
@@ -42,6 +43,9 @@ export function ExtractForm({
   setFiles,
   health,
   hasUserKey,
+  appendSpeech,
+  onSpeechActiveChange,
+  busy,
 }: {
   preset: Preset;
   update: (u: Partial<Preset>) => void;
@@ -49,6 +53,9 @@ export function ExtractForm({
   setFiles: (f: UploadFile[]) => void;
   health: HealthResponse | null;
   hasUserKey: { youtube: boolean; ai: boolean };
+  appendSpeech: (text: string) => void;
+  onSpeechActiveChange: (active: boolean) => void;
+  busy: boolean;
 }) {
   const toast = useToast();
   // 3. 絞り込み・出力設定は最初から開いておく（折りたたみも可能）
@@ -115,6 +122,7 @@ export function ExtractForm({
               {o.label}
             </button>
           ))}
+          <VoiceInput key={preset.id} onAppend={appendSpeech} onEnableText={() => update({ usePaste: true })} onActiveChange={onSpeechActiveChange} disabled={busy} />
         </div>
 
         <div className="space-y-4">

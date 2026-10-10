@@ -4,6 +4,7 @@ import { ClipboardList, Copy, History, ListMusic, Loader2, LogIn, Moon, Music2, 
 import { signIn, signOut } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { exportJSON } from "@/lib/exporters";
+import { appendSpeechText } from "@/lib/speech-input";
 import { MAX_PERFORMED_TEXT, appendPerformed, parsePerformed, performedKeySet } from "@/lib/performed";
 import { addSongsToSetlist, createSetlist, mergeSetlists, parseSetlistBackup, sanitizeSetlist, type Setlist } from "@/lib/setlist";
 import { createPreset, decodeSharedPreset, encodePresetForShare, newId, sanitizePreset, store, type HistoryEntry, type Prefs } from "@/lib/storage";
@@ -119,6 +120,9 @@ function AppInner() {
   const [results, setResults] = useState<Record<string, ResultState>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [speechActive, setSpeechActive] = useState(false);
+  const speechActiveRef = useRef(false);
+  const onSpeechActiveChange = useCallback((next: boolean) => { speechActiveRef.current = next; setSpeechActive(next); }, []);
   const [view, setView] = useState<View>("extract");
   const [setlists, setSetlists] = useState<Setlist[]>(loadSetlists);
   const [setlistId, setSetlistId] = useState("");
@@ -198,12 +202,21 @@ function AppInner() {
   }, [loading]);
 
   const update = useCallback((u: Partial<Preset>) => setPresets((ps) => ps.map((p) => (p.id === activeId ? { ...p, ...u } : p))), [activeId]);
-  const login = () => { void signIn("google"); };
-  const logout = () => { void signOut({ redirectTo: "/" }); };
+  const appendSpeech = useCallback((id: string, text: string) => setPresets((ps) => ps.map((p) => p.id === id ? { ...p, usePaste: true, pastedText: appendSpeechText(p.pastedText, text) } : p)), []);
+  const canLeaveSpeechInput = () => {
+    if (!speechActiveRef.current) return true;
+    toast("音声入力を停止してから操作してください。", "info");
+    return false;
+  };
+  const selectPreset = (id: string) => { if (id === activeId || canLeaveSpeechInput()) setActiveId(id); };
+  const changeView = (next: View) => { if (next === view || canLeaveSpeechInput()) setView(next); };
+  const login = () => { if (canLeaveSpeechInput()) void signIn("google"); };
+  const logout = () => { if (canLeaveSpeechInput()) void signOut({ redirectTo: "/" }); };
   const openSettings = (tab: SettingsTab) => { setSettingsTab(tab); setSettingsOpen(true); };
 
   /* ---- タブ（プリセット）操作 ---- */
   const addPreset = () => {
+    if (!canLeaveSpeechInput()) return;
     if (presets.length >= MAX_PRESETS) { toast(`タブは最大${MAX_PRESETS}個です`, "err"); return; }
     const used = new Set(presets.map((p) => p.name));
     let n = presets.length + 1;
@@ -213,6 +226,7 @@ function AppInner() {
     setActiveId(p.id);
   };
   const duplicate = () => {
+    if (!canLeaveSpeechInput()) return;
     if (presets.length >= MAX_PRESETS) { toast(`タブは最大${MAX_PRESETS}個です`, "err"); return; }
     const p = { ...structuredClone(active), id: newId(), name: `${active.name} のコピー`.slice(0, 40) };
     setPresets((ps) => { const n = ps.slice(); n.splice(ps.indexOf(active) + 1, 0, p); return n; });
@@ -220,6 +234,7 @@ function AppInner() {
     toast("タブを複製しました");
   };
   const closeTab = (id: string) => {
+    if (!canLeaveSpeechInput()) return;
     if (presets.length <= 1) { toast("タブは最低1つ必要です", "err"); return; }
     if (busyId === id) abortRef.current?.abort();
     const idx = presets.findIndex((p) => p.id === id);
@@ -235,6 +250,7 @@ function AppInner() {
     toast(`「${removed.name}」を閉じました`, "info", {
       label: "元に戻す",
       onClick: () => {
+        if (!canLeaveSpeechInput()) return;
         setPresets((ps) => (ps.length >= MAX_PRESETS || ps.some((p) => p.id === id) ? ps : [...ps.slice(0, idx), removed, ...ps.slice(idx)]));
         setActiveId(id);
         if (saved.result) setResults((r) => ({ ...r, [id]: saved.result }));
@@ -242,8 +258,18 @@ function AppInner() {
       },
     });
   };
-  const requestClose = (id: string) => (prefs.confirmDelete ? setConfirm({ kind: "delete", id }) : closeTab(id));
+  const requestClose = (id: string) => {
+    if (!canLeaveSpeechInput()) return;
+    if (prefs.confirmDelete) setConfirm({ kind: "delete", id });
+    else closeTab(id);
+  };
+  const requestReset = () => {
+    if (!canLeaveSpeechInput()) return;
+    if (prefs.confirmReset) setConfirm({ kind: "reset", id: active.id });
+    else doReset(active.id);
+  };
   const doReset = (id: string) => {
+    if (!canLeaveSpeechInput()) return;
     setPresets((ps) => ps.map((p) => (p.id === id ? { ...createPreset(p.name), id: p.id } : p)));
     setFilesBy((f) => omit(f, id));
   };
@@ -263,6 +289,7 @@ function AppInner() {
   const start = async () => {
     if (busyId) return;
     const p = active;
+    if (speechActiveRef.current) { setErr(p.id, "音声入力を停止してから抽出してください。"); return; }
     if (!canStart) { setErr(p.id, "URL・テキスト・ファイルのいずれかを入力してください。"); return; }
     if (needLogin) { setErr(p.id, "抽出するにはログインしてください。"); return; }
     setErr(p.id, "");
@@ -332,7 +359,7 @@ function AppInner() {
     const r = addSongsToSetlist(base ?? createSetlist({ name: "newName" in target ? target.newName : undefined }), songs);
     setSetlists((prev) => (base ? prev.map((s) => (s.id === r.setlist.id ? r.setlist : s)) : [...prev, r.setlist]));
     setSetlistId(r.setlist.id);
-    toast(`「${r.setlist.name}」に${songs.length}曲を追加しました`, "ok", { label: "セトリを開く", onClick: () => setView("setlist") });
+    toast(`「${r.setlist.name}」に${songs.length}曲を追加しました`, "ok", { label: "セトリを開く", onClick: () => changeView("setlist") });
   };
 
   const updateResultSongs = (songs: Song[]) => {
@@ -369,7 +396,11 @@ function AppInner() {
 
   const busyHere = busyId === active.id;
   const busyName = presets.find((p) => p.id === busyId)?.name;
-  const startButton = needLogin ? (
+  const startButton = speechActive ? (
+    <button disabled className={cx(btn.base, "min-h-14 w-full rounded-2xl bg-slate-500 text-lg text-white dark:bg-slate-700")}>
+      <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" />音声入力中…
+    </button>
+  ) : needLogin ? (
     <button onClick={login} className={cx(btn.base, btn.filled, "min-h-14 w-full rounded-2xl text-lg")}>
       <LogIn className="h-5 w-5" />ログインして抽出
     </button>
@@ -385,11 +416,17 @@ function AppInner() {
   );
 
   const tabActions = [
-    { label: "名前変更", icon: Pencil, on: () => setRenaming(active.id) },
-    { label: "複製", icon: Copy, on: duplicate },
-    { label: "共有", icon: Share2, on: share },
-    { label: "初期化", icon: RefreshCw, on: () => (prefs.confirmReset ? setConfirm({ kind: "reset", id: active.id }) : doReset(active.id)) },
+    { label: "名前変更", icon: Pencil },
+    { label: "複製", icon: Copy },
+    { label: "共有", icon: Share2 },
+    { label: "初期化", icon: RefreshCw },
   ];
+  const runTabAction = (label: string) => {
+    if (label === "名前変更") setRenaming(active.id);
+    else if (label === "複製") duplicate();
+    else if (label === "共有") void share();
+    else if (label === "初期化") requestReset();
+  };
   const initial = auth?.user ? Array.from(auth.user.name || auth.user.email)[0]?.toUpperCase() : "";
 
   return (
@@ -402,7 +439,7 @@ function AppInner() {
           <h1 className="truncate text-lg font-bold tracking-wide sm:text-xl">楽曲抽出システム</h1>
           <nav className="ml-6 hidden gap-1 md:flex" aria-label="メイン">
             {NAV_ITEMS.map(([v, label, Icon]) => (
-              <button key={v} onClick={() => setView(v)} aria-current={view === v ? "page" : undefined} className={cx("flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-bold", view === v ? "bg-white text-indigo-700 shadow-sm dark:bg-slate-800 dark:text-indigo-200" : "text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white")}>
+              <button key={v} onClick={() => changeView(v)} aria-current={view === v ? "page" : undefined} className={cx("flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-bold", view === v ? "bg-white text-indigo-700 shadow-sm dark:bg-slate-800 dark:text-indigo-200" : "text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white")}>
                 <Icon className="h-4 w-4" />{label}
               </button>
             ))}
@@ -449,7 +486,7 @@ function AppInner() {
                 finePointer={finePointer}
                 renaming={renaming}
                 setRenaming={setRenaming}
-                onSelect={setActiveId}
+                onSelect={selectPreset}
                 onAdd={addPreset}
                 onClose={requestClose}
                 onRename={(id, name) => setPresets((ps) => ps.map((x) => (x.id === id ? { ...x, name } : x)))}
@@ -464,7 +501,7 @@ function AppInner() {
             >
               <div className="-mx-1 mb-3 flex items-center gap-0.5 overflow-x-auto px-1 text-sm scrollbar-hide print:hidden" role="toolbar" aria-label="このタブの操作">
                 {tabActions.map((a) => (
-                  <button key={a.label} onClick={a.on} className={cx(btn.base, btn.text, "min-h-10 shrink-0 px-2 sm:px-3")}>
+                  <button key={a.label} onClick={() => runTabAction(a.label)} className={cx(btn.base, btn.text, "min-h-10 shrink-0 px-2 sm:px-3")}>
                     <a.icon className="h-4 w-4" />{a.label}
                   </button>
                 ))}
@@ -473,7 +510,7 @@ function AppInner() {
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
                 <div className="min-w-0 lg:col-span-5 print:hidden">
-                  <ExtractForm preset={active} update={update} files={files} setFiles={(f) => setFilesBy((x) => ({ ...x, [active.id]: f }))} health={health} hasUserKey={hasUserKey} />
+                  <ExtractForm preset={active} update={update} files={files} setFiles={(f) => setFilesBy((x) => ({ ...x, [active.id]: f }))} health={health} hasUserKey={hasUserKey} appendSpeech={(text) => appendSpeech(active.id, text)} onSpeechActiveChange={onSpeechActiveChange} busy={loading} />
                   {error && <p role="alert" className="mt-4 rounded-2xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">{error}</p>}
                   <div className="mt-4 hidden md:block">{startButton}</div>
                 </div>
@@ -525,7 +562,7 @@ function AppInner() {
         {view === "extract" && <div className="mb-2">{startButton}</div>}
         <nav className="grid grid-cols-4 gap-1" aria-label="メイン">
           {NAV_ITEMS.map(([v, label, Icon]) => (
-            <button key={v} onClick={() => setView(v)} aria-current={view === v ? "page" : undefined} className={cx("flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-bold", view === v ? "text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-400")}>
+            <button key={v} onClick={() => changeView(v)} aria-current={view === v ? "page" : undefined} className={cx("flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-bold", view === v ? "text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-400")}>
               <span className={cx("grid h-7 w-14 place-items-center rounded-full transition", view === v && "bg-indigo-100 dark:bg-indigo-500/20")}><Icon className="h-5 w-5" /></span>{label}
             </button>
           ))}
