@@ -7,11 +7,11 @@
 | 確認 | 結果 |
 |---|---|
 | `npm run lint` | 通過 |
-| `npm test` | 11 ファイル・239 テスト通過（約 1 秒） |
+| `npm test` | 12 ファイル・244 テスト通過（約 1 秒） |
 | `npm run build` | 通過 |
 
 ## 1. テスト（Vitest）
-- `npm test` で `tests/` を実行。対象は `lib/` の純粋関数（解析・重複除去・絞り込み・整形・検証・集計・セトリ・演奏済み・音声入力・SSRF 判定・保存/共有リンク）と、外部取得の本文抽出（`safe-fetch` だけ差し替え）。
+- `npm test` で `tests/` を実行。対象は `lib/` の純粋関数（解析・重複除去・絞り込み・整形・検証・集計・セトリ・演奏済み・音声入力・SSRF 判定・保存/共有リンク・AI 応答の整形）と、外部取得の本文抽出（`safe-fetch` だけ差し替え）。
 - CI（`.github/workflows/ci.yml`）にも `npm test` を追加。
 
 ## 2. 性能
@@ -55,10 +55,12 @@
 ## 4. 文書
 `README.md` を更新し、`docs/` に `usage.md`・`setup.md`・`deploy.md`・`env.md`・`known-limitations.md`・`development.md` を追加（画面には説明を出さない方針）。`RELEASE.md` に `npm test` を追記。
 
+## 後片付け
+- `public/` の未使用の初期画像（`next.svg` `vercel.svg` `globe.svg` `window.svg` `file.svg`）を削除。
+- ESLint 9 で使われず毎回警告が出ていた `.eslintignore` を削除し、`scripts/` の除外を `eslint.config.mjs` に移した。
+- セキュリティ点検（#2）の取り込み後に、`lib/server/ai.ts` の `parseSongs`（AI 応答の整形）を export してテストを追加。
+
 ## 未確認・残し
 - 実機の iPhone Safari では未確認（Chromium のエミュレーションのみ）。ホーム画面アイコンの見え方も実機で要確認。
-- この環境は `cdn.sheetjs.com` に届かず、`xlsx` は npm 版 0.18.5 を一時的に入れて lint/テスト/ビルドを確認した（`package.json` / ロックファイルは元の指定のまま）。CI の `npm ci` で最終確認が必要。
-- `package-lock.json` に vitest 一式を追加（既存の記載は変更なし）。セキュリティ側の PR（Next.js 更新）とは自動マージできるが、ロックファイルの競合が出たら `npm install` で作り直す。
-- `lib/server/ai.ts` の `parseSongs`（AI 応答の整形）は、セキュリティ側が同じ関数を強化中のため触っていない。マージ後に export してテストを足すのがよい。
-- 未対応: `.eslintignore` は ESLint 9 では使われず毎回警告が出る（`scripts/` の除外を `eslint.config.mjs` に移して削除するのが望ましい。削除は未実施）。`public/` の `next.svg` など未使用の初期ファイルも未削除。
+- この開発環境は `cdn.sheetjs.com` に届かないため、手元では `xlsx` を npm 版 0.18.5 で代用して確認した（`package.json` / ロックファイルは元の指定のまま）。本物の `xlsx` での `npm ci`・lint・テスト・ビルドは GitHub Actions で通過を確認済み。
 - framer-motion の削減（`Reorder` の置き換え）と、数千曲向けの一覧の仮想化は未着手。

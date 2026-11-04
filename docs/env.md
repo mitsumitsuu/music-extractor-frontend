@@ -9,7 +9,7 @@
 | `AUTH_GOOGLE_SECRET` | Google OAuth クライアント シークレット | ログイン機能オフ |
 | `SERVER_KEY_EMAILS` | サーバーの API キーを使ってよいアカウントのメール（カンマ区切り） | ログイン有効時は誰も使えない（各自が設定画面で自分のキーを入力） |
 | `AUTH_ALLOW_GUEST` | `true` で未ログインでも抽出できる | ログイン有効時はログイン必須 |
-| `AUTH_ALLOWED_EMAILS` | ログインできるアカウントを絞る（メール、または `@ドメイン`）。セキュリティ強化の変更で追加される項目で、それを含まない版では無視される | メール確認済みの Google アカウントなら誰でも |
+| `AUTH_ALLOWED_EMAILS` | ログインできるアカウントを絞る（メール、または `@example.ac.jp` のような `@ドメイン`。カンマ区切り） | メール確認済みの Google アカウントなら誰でも |
 | `GEMINI_API_KEY` | AI 抽出（Gemini） | 利用者が設定画面で入力したキーのみ |
 | `OPENAI_API_KEY` | AI 抽出（ChatGPT。有料） | 同上 |
 | `GEMINI_MODEL` | Gemini のモデル固定 | 利用可能なモデルを自動選択 |

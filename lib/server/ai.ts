@@ -72,7 +72,8 @@ const httpUrl = (v: unknown): string | undefined => {
   }
 };
 
-function parseSongs(text: string): AiSong[] {
+/** AI の応答（JSON、コードフェンスや前置き付きでも可）を検証済みの曲リストにする（テストのため export） */
+export function parseSongs(text: string): AiSong[] {
   const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
