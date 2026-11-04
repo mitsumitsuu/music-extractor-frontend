@@ -16,7 +16,7 @@ export function SetlistAddModal({ open, onClose, songs, label, setlists, onAdd }
   const submit = () => onAdd(value === "new" ? { newName: name.trim() || "新しいセトリ" } : { id: value });
   return (
     <Modal open={open} onClose={onClose} title="セトリに追加">
-      <p className="text-sm text-slate-600 dark:text-slate-300">{label}（{songs.length}曲）を追加します。テンプレートの空き曲枠があれば先に埋め、足りない分は曲の後ろに追加します。</p>
+      <p className="text-sm text-slate-700 dark:text-slate-300">{label}を追加します。</p>
       <div className="mt-3 space-y-2" role="radiogroup" aria-label="追加先のセトリ">
         {setlists.map((s) => {
           const tl = computeTimeline(s.items, s.startTime);
@@ -25,7 +25,7 @@ export function SetlistAddModal({ open, onClose, songs, label, setlists, onAdd }
             <button key={s.id} type="button" role="radio" aria-checked={value === s.id} onClick={() => setChoice(s.id)}
               className={cx("w-full rounded-2xl border-2 px-4 py-3 text-left", value === s.id ? "border-indigo-600 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-500/15" : "border-slate-200 dark:border-slate-800")}>
               <span className="block truncate text-sm font-bold">{s.name}</span>
-              <span className="block text-xs text-slate-500">曲{tl.songCount}・{formatDuration(tl.total)}{free ? `・空き曲枠${free}` : ""}</span>
+              <span className="block text-xs text-slate-600 dark:text-slate-400">曲{tl.songCount}・{formatDuration(tl.total)}{free ? `・空き曲枠${free}` : ""}</span>
             </button>
           );
         })}
@@ -36,8 +36,8 @@ export function SetlistAddModal({ open, onClose, songs, label, setlists, onAdd }
       </div>
       {value === "new" && <input aria-label="新しいセトリの公演名" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder="公演名（任意）" className={cx(inputCls, "mt-3")} />}
       <div className="mt-5 grid grid-cols-2 gap-3">
-        <button onClick={onClose} className="rounded-xl bg-slate-100 py-3 font-bold hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">キャンセル</button>
-        <button onClick={submit} disabled={!songs.length} className="rounded-xl bg-indigo-600 py-3 font-bold text-white hover:bg-indigo-700 disabled:opacity-40">追加する</button>
+        <button onClick={onClose} className="min-h-12 rounded-xl bg-slate-100 py-3 font-bold hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">キャンセル</button>
+        <button onClick={submit} disabled={!songs.length} className="min-h-12 rounded-xl bg-indigo-600 py-3 font-bold text-white hover:bg-indigo-700 disabled:opacity-40">追加する</button>
       </div>
     </Modal>
   );

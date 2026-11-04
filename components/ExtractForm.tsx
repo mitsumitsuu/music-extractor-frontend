@@ -5,7 +5,7 @@ import { BarChart3, ChevronDown, FileText, Link as LinkIcon, Sparkles, Upload, X
 import { useState } from "react";
 import { toNumberOrEmpty } from "@/lib/parse";
 import type { Filters, HealthResponse, Preset, UploadFile } from "@/lib/types";
-import { Card, Field, Segmented, Switch, btn, cx, inputCls, useToast } from "./ui";
+import { Card, Field, Segmented, Switch, btn, cx, inputCls, useRadioKeys, useToast } from "./ui";
 import { VoiceInput } from "./VoiceInput";
 
 const MAX_TOTAL = 4 * 1024 * 1024;
@@ -45,6 +45,7 @@ export function ExtractForm({
   hasUserKey,
   appendSpeech,
   onSpeechActiveChange,
+  onOpenSettings,
   busy,
 }: {
   preset: Preset;
@@ -55,12 +56,14 @@ export function ExtractForm({
   hasUserKey: { youtube: boolean; ai: boolean };
   appendSpeech: (text: string) => void;
   onSpeechActiveChange: (active: boolean) => void;
+  onOpenSettings: () => void;
   busy: boolean;
 }) {
   const toast = useToast();
   // 3. 絞り込み・出力設定は最初から開いておく（折りたたみも可能）
   const [openFilter, setOpenFilter] = useState(true);
   const [dragOver, setDragOver] = useState(false);
+  const providerKeys = useRadioKeys(["auto", "gemini", "openai"] as const, preset.provider, (provider) => update({ provider }));
   const f = preset.filters;
   const setF = (u: Partial<Filters>) => update({ filters: { ...f, ...u } });
   const aiReady = hasUserKey.ai || !!health?.gemini || !!health?.openai;
@@ -100,7 +103,7 @@ export function ExtractForm({
       <Card>
         <h2 className="mb-3 flex items-center gap-2 text-base font-bold">
           <StepBadge n={1} />解析するデータ
-          <span className="text-xs font-normal text-slate-600 dark:text-slate-400">（複数選択できます）</span>
+          
         </h2>
         <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="入力方法">
           {[
@@ -127,14 +130,14 @@ export function ExtractForm({
 
         <div className="space-y-4">
           {preset.useUrl && (
-            <Field label="YouTube / SoundCloud / ランキングページのURL" hint="改行で複数入力できます。プレイリストURLもOK（YouTube APIキーがあると確実）。">
+            <Field label="URL（YouTube・SoundCloud・ランキング）">
               {(id) => (
                 <textarea id={id} rows={3} spellCheck={false} className={cx(inputCls, "font-mono text-sm")} placeholder={"https://www.youtube.com/watch?v=...\nhttps://www.youtube.com/playlist?list=..."} value={preset.url} onChange={(e) => update({ url: e.target.value })} />
               )}
             </Field>
           )}
           {preset.usePaste && (
-            <Field label="ランキング・曲リストのテキスト" hint="「1位 曲名 / P名 feat. 初音ミク」のような形式を自動で読み取ります。">
+            <Field label="曲リストのテキスト">
               {(id) => <textarea id={id} rows={6} className={inputCls} placeholder={"1位 ロキ / みきとP feat. 鏡音リン\n2位 千本桜 / 黒うさP feat. 初音ミク"} value={preset.pastedText} onChange={(e) => update({ pastedText: e.target.value })} />}
             </Field>
           )}
@@ -145,20 +148,20 @@ export function ExtractForm({
                 onDragLeave={() => setDragOver(false)}
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files.length) void addFiles(e.dataTransfer.files); }}
                 className={cx(
-                  "flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-7 text-center transition focus-within:outline focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-indigo-700",
+                  "flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition focus-within:outline focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-indigo-700",
                   dragOver ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10" : "border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800/50",
                 )}
               >
                 <Upload className="mb-2 h-8 w-8 text-indigo-600" aria-hidden />
-                <span className="text-sm font-bold">タップして選択 / ドラッグ＆ドロップ</span>
-                <span className="mt-1 text-xs text-slate-600 dark:text-slate-400">CSV・Excel・テキスト（キー不要）／ PDF・画像（AIキーが必要）・合計4MBまで</span>
+                <span className="text-sm font-bold">ファイルを選択 / ここにドロップ</span>
+                <span className="mt-1 text-xs text-slate-600 dark:text-slate-400">CSV・Excel・テキスト・PDF・画像（合計4MBまで）</span>
                 <input type="file" multiple className="sr-only" accept=".csv,.tsv,.txt,.xlsx,.xls,.ods,.pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ""; }} />
               </label>
               {files.length > 0 && (
                 <ul className="mt-2 space-y-1">
                   {files.map((x, i) => (
-                    <li key={i} className="flex items-center justify-between rounded-lg bg-slate-100 py-1 pl-3 pr-1 text-sm dark:bg-slate-800">
-                      <span className="truncate">{x.name}<span className="ml-2 text-xs text-slate-600 dark:text-slate-400">{(x.size / 1024).toFixed(0)}KB{x.data && !aiReady ? "・AIキー必要" : ""}</span></span>
+                    <li key={i} className="flex items-center justify-between gap-2 rounded-xl bg-slate-100 py-0.5 pl-3 pr-0.5 text-sm dark:bg-slate-800">
+                      <span className="min-w-0 truncate">{x.name}<span className="ml-2 text-xs text-slate-600 dark:text-slate-400">{(x.size / 1024).toFixed(0)}KB{x.data && !aiReady ? "・AIキー必要" : ""}</span></span>
                       <button onClick={() => setFiles(files.filter((_, j) => j !== i))} className={btn.icon} aria-label={`${x.name} を取り除く`}><X className="h-4 w-4" /></button>
                     </li>
                   ))}
@@ -166,7 +169,7 @@ export function ExtractForm({
               )}
             </div>
           )}
-          {!preset.useUrl && !preset.usePaste && !preset.useFile && <p className="text-sm text-slate-600 dark:text-slate-400">上のボタンで入力方法を選んでください。</p>}
+          {!preset.useUrl && !preset.usePaste && !preset.useFile && <p className="rounded-xl bg-slate-100 px-3 py-2.5 text-sm dark:bg-slate-800">入力方法を1つ以上選んでください</p>}
         </div>
       </Card>
 
@@ -178,33 +181,36 @@ export function ExtractForm({
           value={preset.mode}
           onChange={(mode) => update({ mode })}
           options={[
-            { value: "fast", label: "高速", icon: <Zap className="h-4 w-4" />, desc: "キー不要。タイトルから自動判定" },
-            { value: "ai", label: "AI抽出", icon: <Sparkles className="h-4 w-4" />, desc: aiReady ? "高精度。PDF・画像・Webページも" : "Gemini/OpenAIキーが必要" },
-            { value: "stats", label: "統計", icon: <BarChart3 className="h-4 w-4" />, desc: ytReady ? "再生数・コメント数で絞り込み" : "YouTube APIキーが必要" },
+            { value: "fast", label: "高速", icon: <Zap className="h-4 w-4" />, desc: "キー不要" },
+            { value: "ai", label: "AI抽出", icon: <Sparkles className="h-4 w-4" />, desc: aiReady ? "高精度" : "要APIキー" },
+            { value: "stats", label: "統計", icon: <BarChart3 className="h-4 w-4" />, desc: ytReady ? "再生数で絞り込み" : "要YouTubeキー" },
           ]}
         />
         {preset.mode !== "fast" && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" role="radiogroup" aria-label="AIエンジン">
-            <span className="font-bold text-slate-700 dark:text-slate-300">AIエンジン:</span>
-            {(["auto", "gemini", "openai"] as const).map((p) => (
-              <button key={p} role="radio" aria-checked={preset.provider === p} onClick={() => update({ provider: p })} className={cx("min-h-10 rounded-full border px-3 font-bold", preset.provider === p ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800")}>
-                {p === "auto" ? "おまかせ（推奨）" : p === "gemini" ? "Gemini" : "ChatGPT"}
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" role="radiogroup" aria-label="AIエンジン" onKeyDown={providerKeys.onKeyDown}>
+            <span className="font-bold text-slate-700 dark:text-slate-300">AIエンジン</span>
+            {(["auto", "gemini", "openai"] as const).map((p, i) => (
+              <button key={p} ref={providerKeys.ref(i)} tabIndex={providerKeys.tabIndex(i)} role="radio" aria-checked={preset.provider === p} onClick={() => update({ provider: p })} className={cx("min-h-11 rounded-full border px-4 font-bold", preset.provider === p ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800")}>
+                {p === "auto" ? "おまかせ" : p === "gemini" ? "Gemini" : "ChatGPT"}
               </button>
             ))}
           </div>
         )}
         {((preset.mode === "ai" && !aiReady) || (preset.mode === "stats" && !ytReady)) && (
-          <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">このモードにはAPIキーが必要です。右上の「設定 → APIキー」から登録してください。</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 py-1 pl-3 pr-1 text-sm text-amber-950 dark:bg-amber-500/10 dark:text-amber-50">
+            <span className="min-w-0 flex-1">このモードにはAPIキーが必要です</span>
+            <button onClick={onOpenSettings} className={cx(btn.base, btn.text, "px-3 text-amber-950 underline dark:text-amber-50")}>キーを設定</button>
+          </div>
         )}
       </Card>
 
       {/* 3. フィルター */}
       <Card className="!p-0">
         <h2>
-          <button onClick={() => setOpenFilter(!openFilter)} className="flex min-h-14 w-full items-center justify-between rounded-3xl px-4 py-4 text-left sm:px-6" aria-expanded={openFilter} aria-controls="filter-panel">
-            <span className="flex items-center gap-2 text-base font-bold">
-              <StepBadge n={3} />絞り込み・出力設定
-              {activeFilterCount > 0 && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-100">{activeFilterCount}件 有効</span>}
+          <button onClick={() => setOpenFilter(!openFilter)} className="flex min-h-14 w-full items-center justify-between gap-2 rounded-3xl px-4 py-4 text-left sm:px-6" aria-expanded={openFilter} aria-controls="filter-panel">
+            <span className="flex flex-wrap items-center gap-2 text-base font-bold">
+              <StepBadge n={3} />絞り込み・出力
+              {activeFilterCount > 0 && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-100">{activeFilterCount}件</span>}
             </span>
             <ChevronDown className={cx("h-5 w-5 transition", openFilter && "rotate-180")} aria-hidden />
           </button>
@@ -222,7 +228,7 @@ export function ExtractForm({
                   {textInput("key", "Key", "Am / 8A")}
                   <div className="col-span-2 sm:col-span-1">{textInput("theme", "テーマ（AI）", "宇宙, 泣ける")}</div>
                 </div>
-                {textInput("excludeWords", "除外ワード", "カバー, 歌ってみた", "カンマ区切り。曲名・P名・歌唱者に含まれると除外します。")}
+                {textInput("excludeWords", "除外ワード（カンマ区切り）", "カバー, 歌ってみた")}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {numInput("minViews", "最小再生数")}
                   {numInput("maxViews", "最大再生数", "空=無制限")}
@@ -231,7 +237,7 @@ export function ExtractForm({
                 </div>
                 <div className="divide-y divide-slate-200 dark:divide-slate-800">
                   <Switch checked={f.multiOnly} onChange={(v) => setF({ multiOnly: v })} label="複数人歌唱の曲のみ" />
-                  <Switch checked={f.requireMmd} onChange={(v) => setF({ requireMmd: v })} label="MMDがある曲のみ" desc="AIの知識で判定します（AIモード推奨）" />
+                  <Switch checked={f.requireMmd} onChange={(v) => setF({ requireMmd: v })} label="MMDがある曲のみ" />
                 </div>
                 <fieldset>
                   <legend className="mb-1 text-sm font-bold text-slate-700 dark:text-slate-200">結果に付けるリンク</legend>

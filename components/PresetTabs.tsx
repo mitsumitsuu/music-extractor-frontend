@@ -123,7 +123,7 @@ export function PresetTabs({
                     aria-label={`${p.name}を閉じる`}
                     title="タブを閉じる（Delete）"
                     className={cx(
-                      "absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-slate-500 hover:bg-slate-300 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white",
+                      "absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full after:absolute after:-inset-2 after:content-[''] text-slate-600 dark:text-slate-400 hover:bg-slate-300 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white",
                       // 非選択タブはマウスを乗せたときだけ（名前の末尾に重ねて表示）。タッチ端末は選択中タブのみ
                       active ? "opacity-100" : "pointer-events-none bg-slate-200 opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 dark:bg-slate-800 [@media(pointer:coarse)]:hidden",
                     )}

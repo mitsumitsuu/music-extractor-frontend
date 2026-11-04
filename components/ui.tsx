@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
@@ -13,7 +13,10 @@ export const btn = {
   tonal: "bg-indigo-50 text-indigo-800 hover:bg-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-100 dark:hover:bg-indigo-500/25",
   outlined: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800",
   text: "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800",
+  /** 控えめな面ボタン（書き出し・補助操作用。色で区別せず形で揃える） */
+  soft: "bg-slate-100 text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
   danger: "bg-rose-600 text-white hover:bg-rose-700",
+  dangerText: "text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10",
   icon: "grid h-11 w-11 shrink-0 place-items-center rounded-full text-slate-600 hover:bg-slate-200/70 dark:text-slate-300 dark:hover:bg-slate-800",
 };
 
@@ -36,7 +39,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-36 z-[200] flex flex-col items-center gap-2 px-4 md:bottom-6" role="status" aria-live="polite">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(9.5rem+env(safe-area-inset-bottom))] z-[200] flex flex-col items-center gap-2 px-4 md:bottom-6" role="status" aria-live="polite">
         <AnimatePresence>
           {items.map((t) => (
             <motion.div
@@ -44,17 +47,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
+              role={t.tone === "err" ? "alert" : undefined}
               className={cx(
-                "pointer-events-auto flex max-w-md items-center gap-3 rounded-xl py-2.5 pl-4 text-sm font-bold shadow-lg",
+                "pointer-events-auto flex max-w-md items-center gap-2.5 rounded-xl py-2.5 pl-3.5 text-sm font-bold shadow-lg",
                 t.action ? "pr-2" : "pr-4",
                 t.tone === "ok" && "bg-emerald-700 text-white",
                 t.tone === "err" && "bg-rose-700 text-white",
                 t.tone === "info" && "bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900",
               )}
             >
-              <span>{t.text}</span>
+              {t.tone === "ok" ? <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden /> : t.tone === "err" ? <AlertCircle className="h-5 w-5 shrink-0" aria-hidden /> : <Info className="h-5 w-5 shrink-0" aria-hidden />}
+              <span className="min-w-0">{t.text}</span>
               {t.action && (
-                <button onClick={() => { t.action?.onClick(); dismiss(t.id); }} className="min-h-9 shrink-0 rounded-lg px-3 underline-offset-2 hover:bg-white/15 hover:underline">
+                <button onClick={() => { t.action?.onClick(); dismiss(t.id); }} className="min-h-11 shrink-0 rounded-lg px-3 underline underline-offset-2 hover:bg-white/15">
                   {t.action.label}
                 </button>
               )}
@@ -161,7 +166,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 }
 
 export const inputCls =
-  "min-h-11 w-full rounded-xl border border-slate-400 bg-white px-3.5 py-2.5 text-base text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-500 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm";
+  "min-h-11 w-full rounded-xl border border-slate-400 bg-white px-3.5 py-2.5 text-base text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-500 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-400 sm:text-sm";
 
 export function Switch({ checked, onChange, label, desc }: { checked: boolean; onChange: (v: boolean) => void; label: string; desc?: string }) {
   return (
@@ -179,16 +184,37 @@ export function Switch({ checked, onChange, label, desc }: { checked: boolean; o
   );
 }
 
+/** ラジオグループの矢印キー操作（← → ↑ ↓ で選択を移動、Tab では選択中の1つだけに止まる） */
+export function useRadioKeys<T extends string>(values: T[], value: T, onChange: (v: T) => void) {
+  const refs = useRef<(HTMLElement | null)[]>([]);
+  const idx = Math.max(0, values.indexOf(value));
+  return {
+    ref: (i: number) => (el: HTMLElement | null) => { refs.current[i] = el; },
+    tabIndex: (i: number) => (i === idx ? 0 : -1),
+    onKeyDown: (e: React.KeyboardEvent) => {
+      const n = values.length;
+      const next = e.key === "ArrowRight" || e.key === "ArrowDown" ? (idx + 1) % n : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (idx - 1 + n) % n : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : -1;
+      if (next < 0) return;
+      e.preventDefault();
+      onChange(values[next]);
+      refs.current[next]?.focus();
+    },
+  };
+}
+
 export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: string; desc?: string; icon?: ReactNode }[]; label?: string }) {
+  const keys = useRadioKeys(options.map((o) => o.value), value, onChange);
   return (
     <div className="@container">
-    <div className="grid gap-2 @lg:grid-cols-3" role="radiogroup" aria-label={label}>
-      {options.map((o) => (
+    <div className="grid gap-2 @lg:grid-cols-3" role="radiogroup" aria-label={label} onKeyDown={keys.onKeyDown}>
+      {options.map((o, i) => (
         <button
           key={o.value}
+          ref={keys.ref(i)}
           type="button"
           role="radio"
           aria-checked={value === o.value}
+          tabIndex={keys.tabIndex(i)}
           onClick={() => onChange(o.value)}
           className={cx(
             "flex min-h-11 items-start gap-2 rounded-2xl border-2 px-4 py-3 text-left transition",
@@ -197,7 +223,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
               : "border-slate-200 bg-white hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-slate-500",
           )}
         >
-          {o.icon && <span className={cx("mt-0.5 shrink-0", value === o.value ? "text-indigo-700 dark:text-indigo-300" : "text-slate-500")}>{o.icon}</span>}
+          {o.icon && <span className={cx("mt-0.5 shrink-0", value === o.value ? "text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-400")}>{o.icon}</span>}
           <span className="min-w-0">
             <span className="block text-sm font-bold">{o.label}</span>
             {o.desc && <span className="mt-0.5 block text-xs leading-relaxed text-slate-600 dark:text-slate-400">{o.desc}</span>}
@@ -205,6 +231,29 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
         </button>
       ))}
     </div>
+    </div>
+  );
+}
+
+/** チェックボックス。見た目は 20px、タップできる範囲は 44px 以上（スマホでも押し間違えない）。text を渡すと右に文言を並べ、文言ごと押せる */
+export function CheckBox({ checked, onChange, label, text, disabled, className }: { checked: boolean; onChange: (v: boolean) => void; label: string; text?: ReactNode; disabled?: boolean; className?: string }) {
+  return (
+    <label className={cx("inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-full has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50", text ? "pr-3 text-sm font-bold" : "", className)}>
+      <span className="grid h-11 w-11 place-items-center">
+        <input type="checkbox" aria-label={text ? undefined : label} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} className="h-5 w-5 cursor-[inherit] accent-indigo-600" />
+      </span>
+      {text}
+    </label>
+  );
+}
+
+/** 空・失敗・読み込み中の共通表示 */
+export function StateView({ icon, title, tone = "neutral", children, className }: { icon: ReactNode; title: string; tone?: "neutral" | "error"; children?: ReactNode; className?: string }) {
+  return (
+    <div role={tone === "error" ? "alert" : undefined} className={cx("flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed px-6 py-10 text-center", tone === "error" ? "border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-50" : "border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-300", className)}>
+      <span className={tone === "error" ? "text-rose-600 dark:text-rose-300" : "text-indigo-600 dark:text-indigo-300"} aria-hidden>{icon}</span>
+      <p className="font-bold">{title}</p>
+      {children}
     </div>
   );
 }

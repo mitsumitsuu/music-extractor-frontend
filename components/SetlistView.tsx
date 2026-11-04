@@ -14,7 +14,7 @@ import { BpmLine } from "./BpmLine";
 import { Card, Field, Modal, cx, inputCls, useToast } from "./ui";
 
 type Undo = { id: number; label: string; restore: () => void };
-const smallBtn = "inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800";
+const smallBtn = "inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-bold hover:bg-slate-100 disabled:opacity-40 dark:hover:bg-slate-800";
 
 type Props = {
   setlists: Setlist[];
@@ -134,7 +134,7 @@ export function SetlistView({ setlists, setSetlists, activeId, setActiveId, perf
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="mr-1 text-lg font-bold">セトリ<span className="ml-2 text-sm font-normal text-slate-500">この端末に自動保存</span></h2>
+        <h2 className="mr-1 text-lg font-bold">セトリ</h2>
         <span className="ml-auto flex flex-wrap items-center gap-1">
           <button onClick={onOpenPerformed} className={cx(smallBtn, "text-slate-600 dark:text-slate-300")}><History className="h-4 w-4" />演奏済みリスト{performedKeys.size ? `（${performedKeys.size}）` : ""}</button>
           <button onClick={() => exportSetlistsJSON(setlists, "setlists-backup")} disabled={!setlists.length} className={cx(smallBtn, "text-slate-600 disabled:opacity-40 dark:text-slate-300")}><Download className="h-4 w-4" />バックアップ</button>
@@ -146,8 +146,8 @@ export function SetlistView({ setlists, setSetlists, activeId, setActiveId, perf
       {undo && (
         <div role="status" className="flex items-center gap-3 rounded-2xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white dark:bg-slate-200 dark:text-slate-900">
           <span className="min-w-0 flex-1 truncate">{undo.label}</span>
-          <button onClick={() => { undo.restore(); setUndo(null); }} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-white/15 px-3 py-1.5 hover:bg-white/25 dark:bg-slate-900/10"><Undo2 className="h-4 w-4" />元に戻す</button>
-          <button onClick={() => setUndo(null)} aria-label="閉じる" className="shrink-0 opacity-70 hover:opacity-100"><X className="h-4 w-4" /></button>
+          <button onClick={() => { undo.restore(); setUndo(null); }} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg bg-white/15 px-3 hover:bg-white/25 dark:bg-slate-900/10"><Undo2 className="h-4 w-4" />元に戻す</button>
+          <button onClick={() => setUndo(null)} aria-label="閉じる" className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-white/15"><X className="h-4 w-4" /></button>
         </div>
       )}
 
@@ -157,13 +157,13 @@ export function SetlistView({ setlists, setSetlists, activeId, setActiveId, perf
           <div className="flex w-max gap-2 py-1" role="tablist" aria-label="セトリの切り替え">
             {setlists.map((s) => (
               <button key={s.id} role="tab" aria-selected={s.id === active?.id} onClick={() => setActiveId(s.id)}
-                className={cx("max-w-[12rem] shrink-0 truncate rounded-full border px-4 py-2 text-sm font-bold transition", s.id === active?.id ? "border-indigo-600 bg-indigo-600 text-white shadow" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300")}>
+                className={cx("min-h-11 max-w-[12rem] shrink-0 truncate rounded-full border px-4 text-sm font-bold transition", s.id === active?.id ? "border-indigo-600 bg-indigo-600 text-white shadow" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300")}>
                 {s.name}
               </button>
             ))}
           </div>
         </div>
-        <button onClick={() => setCreateOpen(true)} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-slate-400 px-3 py-2 text-sm font-bold text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800"><Plus className="h-4 w-4" />新規</button>
+        <button onClick={() => setCreateOpen(true)} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-dashed border-slate-500 px-4 text-sm font-bold text-slate-700 hover:bg-white dark:text-slate-200 dark:hover:bg-slate-800"><Plus className="h-4 w-4" aria-hidden />新規</button>
       </div>
 
       {!active || !tl || !dups || !perf ? (
@@ -171,8 +171,8 @@ export function SetlistView({ setlists, setSetlists, activeId, setActiveId, perf
           <div className="py-6 text-center">
             <ClipboardList className="mx-auto mb-3 h-10 w-10 text-indigo-400" />
             <p className="font-bold">まだセトリがありません</p>
-            <p className="mt-1 text-sm text-slate-500">テンプレートから作るか、抽出結果の「セトリに追加」から作成できます。</p>
-            <button onClick={() => setCreateOpen(true)} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-5 py-3 font-bold text-white hover:bg-indigo-700"><Plus className="h-4 w-4" />セトリを作る</button>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">テンプレートから作るか、抽出結果の「セトリに追加」から作成できます。</p>
+            <button onClick={() => setCreateOpen(true)} className="mt-4 inline-flex min-h-12 items-center gap-1.5 rounded-xl bg-indigo-600 px-5 font-bold text-white hover:bg-indigo-700"><Plus className="h-4 w-4" aria-hidden />セトリを作る</button>
           </div>
         </Card>
       ) : (
@@ -182,11 +182,11 @@ export function SetlistView({ setlists, setSetlists, activeId, setActiveId, perf
               <Field label="公演名">{(id) => <input id={id} value={active.name} maxLength={60} onChange={(e) => patch((s) => ({ ...s, name: e.target.value }))} onBlur={(e) => { if (!e.target.value.trim()) patch((s) => ({ ...s, name: "無題のセトリ" })); }} className={inputCls} />}</Field>
               <Field label="テーマ">{(id) => <input id={id} value={active.theme ?? ""} maxLength={60} list="setlist-themes" onChange={(e) => patch((s) => ({ ...s, theme: e.target.value || undefined }))} placeholder="例: 近未来" className={inputCls} />}</Field>
               <Field label="日付">{(id) => <input id={id} type="date" value={active.date ?? ""} onChange={(e) => patch((s) => ({ ...s, date: e.target.value || undefined }))} className={inputCls} />}</Field>
-              <Field label="開始時刻（任意）" hint="入れると各項目の開始を時刻で表示します（空なら経過時間）">{(id) => <input id={id} type="time" value={active.startTime ?? ""} onChange={(e) => patch((s) => ({ ...s, startTime: parseClock(e.target.value) !== null ? e.target.value : undefined }))} className={inputCls} />}</Field>
+              <Field label="開始時刻（任意）">{(id) => <input id={id} type="time" value={active.startTime ?? ""} onChange={(e) => patch((s) => ({ ...s, startTime: parseClock(e.target.value) !== null ? e.target.value : undefined }))} className={inputCls} />}</Field>
             </div>
             <datalist id="setlist-themes">{THEME_SUGGESTIONS.map((t) => <option key={t} value={t} />)}</datalist>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {THEME_SUGGESTIONS.map((t) => <button key={t} onClick={() => patch((s) => ({ ...s, theme: t }))} className={cx("rounded-full border px-3 py-1 text-xs font-bold", active.theme === t ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-200" : "border-slate-200 text-slate-500 dark:border-slate-700")}>{t}</button>)}
+              {THEME_SUGGESTIONS.map((t) => <button key={t} onClick={() => patch((s) => ({ ...s, theme: t }))} className={cx("min-h-9 rounded-full border px-3 text-sm font-bold pointer-coarse:min-h-11", active.theme === t ? "border-indigo-600 bg-indigo-50 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-200" : "border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300")}>{t}</button>)}
             </div>
           </Card>
 
@@ -195,13 +195,13 @@ export function SetlistView({ setlists, setSetlists, activeId, setActiveId, perf
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="セトリの合計">
               {[["合計時間", formatDuration(tl.total)], ["曲数", `${tl.songCount}曲`], ["MC", `${tl.mcCount}回`], [tl.startClock ? "終了予定" : "項目数", tl.startClock ? `${tl.endClock}` : `${active.items.length}`]].map(([k, v]) => (
                 <div key={k} className="rounded-2xl bg-slate-50 px-3 py-2 dark:bg-slate-800/60">
-                  <p className="text-xs text-slate-500">{k}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{k}</p>
                   <p className="text-lg font-bold tabular-nums">{v}</p>
                 </div>
               ))}
             </div>
             {(dups.titles.length > 0 || perf.titles.length > 0 || farKeys.length > 0) && (
-              <ul className="mt-3 space-y-1 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200" role="alert">
+              <ul className="mt-3 space-y-1 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:bg-amber-500/10 dark:text-amber-100" role="alert">
                 {dups.titles.length > 0 && <li>・曲が重複しています: {dups.titles.join("、")}</li>}
                 {perf.titles.length > 0 && <li>・演奏済みの曲が含まれています: {perf.titles.join("、")}</li>}
                 {farKeys.length > 0 && <li>・続けて演奏する曲で Key が離れている箇所: {farKeys.map((t) => `${t.from.songNo}→${t.to.songNo}曲目（${t.from.camelot}→${t.to.camelot}）`).join("、")}</li>}
@@ -212,9 +212,9 @@ export function SetlistView({ setlists, setSetlists, activeId, setActiveId, perf
 
           <Card>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-bold">進行表<span className="ml-2 text-sm font-normal text-slate-500">{setlistSummary(active)}</span></h3>
+              <h3 className="font-bold">進行表<span className="ml-2 text-sm font-normal text-slate-600 dark:text-slate-400">{setlistSummary(active)}</span></h3>
             </div>
-            {active.items.length === 0 && <p className="mt-4 rounded-2xl bg-slate-50 p-6 text-center text-sm text-slate-500 dark:bg-slate-800/60">項目がありません。下のボタンから OP・MC・曲を追加してください。</p>}
+            {active.items.length === 0 && <p className="mt-4 rounded-2xl bg-slate-50 p-6 text-center text-sm text-slate-600 dark:text-slate-400 dark:bg-slate-800/60">項目がありません</p>}
             <ol className="mt-3 space-y-2">
               {active.items.map((it, i) => (
                 <ItemRow key={it.id} it={it} index={i} last={i === active.items.length - 1} start={tl.byId[it.id]?.start ?? ""} songNo={tl.byId[it.id]?.songNo} clock={!!tl.startClock}
@@ -224,42 +224,41 @@ export function SetlistView({ setlists, setSetlists, activeId, setActiveId, perf
             </ol>
 
             <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
-              <p className="mb-2 text-sm font-bold text-slate-600 dark:text-slate-300">項目を追加（末尾）</p>
+              <p className="mb-2 text-sm font-bold">項目を追加</p>
               <div className="flex flex-wrap gap-1.5">
                 {ITEM_TYPES.filter((t) => t.type !== "song").map((t) => (
-                  <button key={t.type} onClick={() => addBlock(t.type as Exclude<SetlistItemType, "song">)} className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                    <Plus className="h-3.5 w-3.5" />{t.label}<span className="font-normal text-slate-500 dark:text-slate-400">{formatDuration(t.duration)}</span>
+                  <button key={t.type} onClick={() => addBlock(t.type as Exclude<SetlistItemType, "song">)} className="inline-flex min-h-11 items-center gap-1 rounded-full border border-slate-400 px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800">
+                    <Plus className="h-4 w-4" aria-hidden />{t.label}<span className="font-normal text-slate-600 dark:text-slate-400">{formatDuration(t.duration)}</span>
                   </button>
                 ))}
               </div>
               <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); addManualSong(); }}>
                 <label htmlFor="manual-song" className="sr-only">曲を手入力で追加</label>
-                <input id="manual-song" value={manual} onChange={(e) => setManual(e.target.value)} placeholder="曲を手入力: 曲名 / P名" className={inputCls} />
-                <button type="submit" disabled={!manual.trim()} className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-40"><Plus className="h-4 w-4" />曲を追加</button>
+                <input id="manual-song" value={manual} onChange={(e) => setManual(e.target.value)} placeholder="曲名 / P名 で手入力" className={inputCls} />
+                <button type="submit" disabled={!manual.trim()} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-40"><Plus className="h-4 w-4" aria-hidden />追加</button>
               </form>
-              <p className="mt-1 text-xs text-slate-500">空きの曲枠（テンプレート）があれば先に埋まります。抽出結果からは「抽出」タブの「セトリに追加」で入れられます。</p>
             </div>
           </Card>
 
           <Card>
             <h3 className="mb-3 font-bold">書き出し・管理</h3>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => copyText(setlistToText(active), "テキストをコピーしました")} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-600 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700"><Copy className="h-4 w-4" />テキストをコピー</button>
-              <button onClick={() => copyText(setlistToTSV(active), "TSVをコピーしました（Excel・スプレッドシートにそのまま貼れます）")} className="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-3 py-2 text-xs font-bold text-white hover:bg-sky-700"><Copy className="h-4 w-4" />TSVをコピー</button>
-              <button onClick={doXlsx} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700"><FileSpreadsheet className="h-4 w-4" />Excel</button>
-              <button onClick={() => exportSetlistsJSON([active], active.name)} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700"><Download className="h-4 w-4" />このセトリをJSON</button>
+              <button onClick={() => copyText(setlistToText(active), "テキストをコピーしました")} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"><Copy className="h-4 w-4" />テキストをコピー</button>
+              <button onClick={() => copyText(setlistToTSV(active), "TSVをコピーしました（Excel・スプレッドシートにそのまま貼れます）")} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"><Copy className="h-4 w-4" />TSVをコピー</button>
+              <button onClick={doXlsx} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"><FileSpreadsheet className="h-4 w-4" />Excel</button>
+              <button onClick={() => exportSetlistsJSON([active], active.name)} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"><Download className="h-4 w-4" />このセトリをJSON</button>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button onClick={registerPerformed} disabled={!hasSongs} className={cx(smallBtn, "text-slate-600 disabled:opacity-40 dark:text-slate-300")}><CalendarPlus className="h-4 w-4" />曲を演奏済みリストに登録</button>
               <button onClick={duplicateList} className={cx(smallBtn, "text-slate-600 dark:text-slate-300")}><Copy className="h-4 w-4" />このセトリを複製</button>
               {armedDelete ? (
                 <span className="ml-auto flex items-center gap-1">
-                  <span className="text-xs font-bold text-rose-600">削除しますか？</span>
-                  <button onClick={deleteList} className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700">削除する</button>
+                  <span className="text-sm font-bold text-rose-700 dark:text-rose-300">削除しますか？</span>
+                  <button onClick={deleteList} className="min-h-11 rounded-lg bg-rose-700 px-3 text-sm font-bold text-white hover:bg-rose-800">削除する</button>
                   <button onClick={() => setArmedId(null)} className={smallBtn}>やめる</button>
                 </span>
               ) : (
-                <button onClick={() => setArmedId(active.id)} className={cx(smallBtn, "ml-auto text-rose-600")}><Trash2 className="h-4 w-4" />このセトリを削除</button>
+                <button onClick={() => setArmedId(active.id)} className={cx(smallBtn, "ml-auto text-rose-700 dark:text-rose-300")}><Trash2 className="h-4 w-4" />このセトリを削除</button>
               )}
             </div>
           </Card>
@@ -283,7 +282,7 @@ function ItemRow({ it, index, last, start, songNo, clock, dup, performed, onChan
   const cam = song ? camelotOf(it.key) : undefined;
   const label = it.title || typeLabel(it.type);
   const tone = song ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-200" : it.type === "mc" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200" : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200";
-  const arrow = "grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-25 dark:hover:bg-slate-800";
+  const arrow = "grid h-11 w-11 place-items-center rounded-lg text-slate-700 hover:bg-slate-100 disabled:opacity-30 dark:text-slate-300 dark:hover:bg-slate-800";
   const num = (v: string) => { const n = Number(v.replace(/[^0-9.]/g, "")); return v.trim() && Number.isFinite(n) && n > 0 && n < 1000 ? n : undefined; };
 
   return (
@@ -295,9 +294,9 @@ function ItemRow({ it, index, last, start, songNo, clock, dup, performed, onChan
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="font-bold tabular-nums text-slate-500" title={clock ? "開始時刻" : "開始までの経過"}>{start}</span>
+            <span className="font-bold tabular-nums text-slate-600 dark:text-slate-400" title={clock ? "開始時刻" : "開始までの経過"}>{start}</span>
             <span className={cx("rounded-md px-1.5 py-0.5 font-bold", tone)}>{typeLabel(it.type)}{songNo ? ` ${songNo}` : ""}</span>
-            {it.placeholder && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-500 dark:bg-slate-800">空き枠</span>}
+            {it.placeholder && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-600 dark:text-slate-400 dark:bg-slate-800">空き枠</span>}
             {dup && <span className="rounded-md bg-amber-100 px-1.5 py-0.5 font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">重複</span>}
             {performed && <span className="rounded-md bg-amber-100 px-1.5 py-0.5 font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">演奏済み</span>}
             {song && it.bpm && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 dark:bg-slate-800">BPM {it.bpm}</span>}
@@ -305,8 +304,8 @@ function ItemRow({ it, index, last, start, songNo, clock, dup, performed, onChan
             {song && it.mmd === "あり" && <span className="rounded-md bg-purple-100 px-1.5 py-0.5 text-purple-800 dark:bg-purple-500/20 dark:text-purple-200">MMD</span>}
           </div>
           <input aria-label={`${index + 1}番目の${song ? "曲名" : "項目名"}`} value={it.title} maxLength={200} onChange={(e) => onChange({ title: e.target.value })} onBlur={(e) => { if (!e.target.value.trim()) onChange({ title: typeLabel(it.type) }); }}
-            className="mt-1 w-full rounded-lg border border-transparent bg-transparent px-1 py-1 text-base font-bold outline-none hover:border-slate-200 focus:border-indigo-500 dark:hover:border-slate-700 sm:text-sm" />
-          {song && (it.producer || it.vocal) && <p className="px-1 text-xs text-slate-500">{[it.producer, it.vocal].filter(Boolean).join(" ・ ")}</p>}
+            className="mt-1 min-h-11 w-full rounded-lg border border-transparent bg-transparent px-1 py-1 text-base font-bold outline-none hover:border-slate-200 focus:border-indigo-500 dark:hover:border-slate-700 sm:text-sm" />
+          {song && (it.producer || it.vocal) && <p className="px-1 text-sm text-slate-600 dark:text-slate-400">{[it.producer, it.vocal].filter(Boolean).join(" ・ ")}</p>}
         </div>
         <div className="shrink-0">
           <label className="sr-only" htmlFor={`dur-${it.id}`}>長さ（mm:ss）</label>
@@ -314,17 +313,17 @@ function ItemRow({ it, index, last, start, songNo, clock, dup, performed, onChan
             onChange={() => setBadDur(false)}
             onBlur={(e) => { const sec = parseDuration(e.target.value); if (sec === null) { setBadDur(true); e.target.value = formatDuration(it.duration); } else { setBadDur(false); if (sec !== it.duration) onChange({ duration: sec }); else e.target.value = formatDuration(sec); } }}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-            className={cx("w-[4.5rem] rounded-lg border bg-white px-2 py-2 text-center text-base tabular-nums outline-none focus:border-indigo-500 dark:bg-slate-950 sm:text-sm", badDur ? "border-rose-500" : "border-slate-300 dark:border-slate-700")} />
-          {badDur && <p className="mt-0.5 w-[4.5rem] text-center text-[10px] font-bold text-rose-600">例 4:00</p>}
+            className={cx("min-h-11 w-[4.5rem] rounded-lg border bg-white px-2 py-2 text-center text-base tabular-nums outline-none focus:border-indigo-500 dark:bg-slate-950 sm:text-sm", badDur ? "border-rose-500" : "border-slate-300 dark:border-slate-700")} />
+          {badDur && <p className="mt-0.5 w-[4.5rem] text-center text-xs font-bold text-rose-700 dark:text-rose-300">例 4:00</p>}
         </div>
       </div>
-      <div className="mt-1 flex items-center gap-1 pl-[2.625rem]">
+      <div className="mt-1 flex items-center gap-1 pl-12">
         <button onClick={() => setOpen((v) => !v)} aria-expanded={open} className={cx(smallBtn, "text-slate-600 dark:text-slate-300")}>詳細・メモ<ChevronDown className={cx("h-3.5 w-3.5 transition", open && "rotate-180")} />{!open && it.notes && <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-indigo-500" aria-label="メモあり" />}</button>
-        <button onClick={onDuplicate} aria-label={`${label}を複製`} className={cx(smallBtn, "text-slate-600 dark:text-slate-300")}><Copy className="h-3.5 w-3.5" />複製</button>
-        <button onClick={onRemove} aria-label={`${label}を削除`} className={cx(smallBtn, "ml-auto text-rose-600")}><Trash2 className="h-3.5 w-3.5" />削除</button>
+        <button onClick={onDuplicate} aria-label={`${label}を複製`} className={cx(smallBtn, "text-slate-600 dark:text-slate-300")}><Copy className="h-4 w-4" aria-hidden />複製</button>
+        <button onClick={onRemove} aria-label={`${label}を削除`} className={cx(smallBtn, "ml-auto text-rose-700 dark:text-rose-300")}><Trash2 className="h-4 w-4" aria-hidden />削除</button>
       </div>
       {open && (
-        <div className="mt-2 grid gap-3 pl-[2.625rem] sm:grid-cols-2">
+        <div className="mt-2 grid gap-3 pl-12 sm:grid-cols-2">
           {song && (
             <>
               <Field label="ボカロP">{(id) => <input id={id} value={it.producer ?? ""} maxLength={200} onChange={(e) => onChange({ producer: e.target.value || undefined })} className={inputCls} />}</Field>
@@ -371,13 +370,13 @@ function CreateModal({ open, onClose, onCreate }: { open: boolean; onClose: () =
             <button key={t.id} type="button" role="radio" aria-checked={tpl === t.id} onClick={() => setTpl(t.id)}
               className={cx("rounded-2xl border-2 px-4 py-3 text-left", tpl === t.id ? "border-indigo-600 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-500/15" : "border-slate-200 dark:border-slate-800")}>
               <span className="block text-sm font-bold">{t.name}</span>
-              <span className="mt-0.5 block text-xs text-slate-500">{t.desc}</span>
+              <span className="mt-0.5 block text-sm text-slate-600 dark:text-slate-400">{t.desc}</span>
             </button>
           ))}
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <button onClick={onClose} className="rounded-xl bg-slate-100 py-3 font-bold hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">キャンセル</button>
-          <button onClick={() => { onCreate({ name, templateId: tpl, date, theme, startTime: parseClock(startTime) !== null ? startTime : undefined }); setName(""); setTheme(""); setDate(""); setStartTime(""); }} className="rounded-xl bg-indigo-600 py-3 font-bold text-white hover:bg-indigo-700">作成する</button>
+          <button onClick={onClose} className="min-h-12 rounded-xl bg-slate-100 py-3 font-bold hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">キャンセル</button>
+          <button onClick={() => { onCreate({ name, templateId: tpl, date, theme, startTime: parseClock(startTime) !== null ? startTime : undefined }); setName(""); setTheme(""); setDate(""); setStartTime(""); }} className="min-h-12 rounded-xl bg-indigo-600 py-3 font-bold text-white hover:bg-indigo-700">作成する</button>
         </div>
       </div>
     </Modal>

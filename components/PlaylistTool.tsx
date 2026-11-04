@@ -29,23 +29,23 @@ export function PlaylistTool({ lastSongs }: { lastSongs: Song[] }) {
 
   return (
     <Card>
-      <h2 className="flex items-center gap-2 text-lg font-bold"><ListMusic className="h-5 w-5 text-indigo-600" />YouTubeプレイリスト作成</h2>
-      <p className="mt-1 text-sm text-slate-500">URLを含むリスト（Excel/CSV/テキスト）から、ログイン不要で再生できるYouTubeプレイリストを作ります（50曲ごとに分割）。</p>
+      <h2 className="flex items-center gap-2 text-lg font-bold"><ListMusic className="h-5 w-5 text-indigo-600 dark:text-indigo-300" aria-hidden />YouTubeプレイリスト作成</h2>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+        <label className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-400 px-4 py-2 text-sm font-bold focus-within:outline focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-indigo-700 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800">
           <Upload className="h-4 w-4" />Excel / CSV を読み込む
           <input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.ods" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); e.target.value = ""; }} />
         </label>
         {lastSongs.some((s) => s.url) && (
-          <button onClick={() => setText(lastSongs.map((s) => s.url).filter(Boolean).join("\n"))} className="rounded-xl border border-indigo-300 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-500/40 dark:text-indigo-200 dark:hover:bg-indigo-500/10">
+          <button onClick={() => setText(lastSongs.map((s) => s.url).filter(Boolean).join("\n"))} className="min-h-11 rounded-xl border border-indigo-400 px-4 py-2 text-sm font-bold text-indigo-800 hover:bg-indigo-50 dark:border-indigo-400/50 dark:text-indigo-200 dark:hover:bg-indigo-500/10">
             直前の抽出結果を使う
           </button>
         )}
       </div>
 
-      <textarea rows={8} className={`${inputCls} mt-3 font-mono text-sm`} placeholder="https://www.youtube.com/watch?v=..." value={text} onChange={(e) => setText(e.target.value)} />
-      <p className="mt-2 text-sm">検出した動画: <b>{ids.length}</b> 件</p>
+      <label htmlFor="playlist-text" className="sr-only">URLを含むリスト</label>
+      <textarea id="playlist-text" rows={8} className={`${inputCls} mt-3 font-mono text-sm`} placeholder="https://www.youtube.com/watch?v=..." value={text} onChange={(e) => setText(e.target.value)} />
+      <p className="mt-2 text-sm" role="status">検出した動画 <b>{ids.length}</b> 件</p>
 
       {urls.length > 0 && (
         <ul className="mt-3 space-y-2">
@@ -53,8 +53,8 @@ export function PlaylistTool({ lastSongs }: { lastSongs: Song[] }) {
             <li key={u} className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
               <span className="text-sm font-bold">プレイリスト {i + 1}（{Math.min(50, ids.length - i * 50)}曲）</span>
               <span className="ml-auto flex gap-2">
-                <a href={u} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700">開く<ExternalLink className="h-3 w-3" /></a>
-                <button onClick={() => navigator.clipboard.writeText(u).then(() => toast("URLをコピーしました"), () => toast("コピーできませんでした", "err"))} className="flex items-center gap-1 rounded-lg bg-slate-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700"><Copy className="h-3 w-3" />コピー</button>
+                <a href={u} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700">開く<ExternalLink className="h-3.5 w-3.5" aria-hidden /></a>
+                <button onClick={() => navigator.clipboard.writeText(u).then(() => toast("URLをコピーしました"), () => toast("コピーできませんでした", "err"))} className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-slate-100 px-4 text-sm font-bold text-slate-800 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"><Copy className="h-3.5 w-3.5" aria-hidden />コピー</button>
               </span>
             </li>
           ))}
