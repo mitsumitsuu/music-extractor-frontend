@@ -10,6 +10,7 @@ const K = {
   history: "mx:history:v2",
   setlists: "mx:setlists:v1",
   performed: "mx:performed:v1",
+  passcodeSession: "mx:passcode:session",
 };
 
 export type Prefs = {
@@ -136,15 +137,27 @@ export const store = {
   saveActive: (id: string) => write(K.active, id),
   loadPrefs: (): Prefs => {
     const p = read<Partial<Prefs>>(K.prefs, {});
+    let sessionPass = "";
+    try { sessionPass = window.sessionStorage.getItem(K.passcodeSession) ?? ""; } catch { /* ignore */ }
     return {
       theme: p.theme === "light" || p.theme === "dark" ? p.theme : "system",
       confirmDelete: typeof p.confirmDelete === "boolean" ? p.confirmDelete : DEFAULT_PREFS.confirmDelete,
       confirmReset: typeof p.confirmReset === "boolean" ? p.confirmReset : DEFAULT_PREFS.confirmReset,
       rememberKeys: p.rememberKeys === true,
-      passcode: typeof p.passcode === "string" ? p.passcode.slice(0, 200) : "",
+      passcode: (typeof p.passcode === "string" && p.passcode ? p.passcode : sessionPass).slice(0, 200),
     };
   },
-  savePrefs: (p: Prefs) => write(K.prefs, p),
+  /**
+   * 合言葉は API キーと同じ扱い：「この端末に保存」がオフならタブを閉じると消える sessionStorage にだけ置き、
+   * localStorage（ずっと残る）には書かない。共用 PC に合言葉が残らないようにするため。
+   */
+  savePrefs: (p: Prefs) => {
+    try {
+      if (p.rememberKeys || !p.passcode) window.sessionStorage.removeItem(K.passcodeSession);
+      else window.sessionStorage.setItem(K.passcodeSession, p.passcode);
+    } catch { /* ignore */ }
+    write(K.prefs, p.rememberKeys ? p : { ...p, passcode: "" });
+  },
   loadKeys: () => read<ApiKeys>(K.keys, {}),
   saveKeys: (k: ApiKeys | null) => {
     if (!k) {

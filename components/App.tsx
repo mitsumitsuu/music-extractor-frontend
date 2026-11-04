@@ -312,20 +312,23 @@ function AppInner() {
     const ac = new AbortController();
     abortRef.current = ac;
     try {
+      const body = JSON.stringify({
+        urls: p.useUrl ? p.url.split(/\s+/).filter(Boolean) : [],
+        text: p.usePaste ? p.pastedText : "",
+        files: p.useFile ? files : [],
+        mode: p.mode,
+        provider: p.provider,
+        filters: p.filters,
+        links: p.links,
+        keys: { youtube: keys.youtube || undefined, gemini: keys.gemini || undefined, openai: keys.openai || undefined },
+      });
+      // サーバーの受信上限（4.5MB）を超える場合は送る前に知らせる（大きな貼り付けテキスト＋ファイルの組み合わせ対策）
+      if (new Blob([body]).size > 4_400_000) throw new Error("送信データが大きすぎます。ファイルや貼り付けテキストを減らしてください。");
       const res = await fetch("/api/extract", {
         method: "POST",
         signal: ac.signal,
         headers: { "Content-Type": "application/json", ...(prefs.passcode ? { "x-app-passcode": prefs.passcode } : {}) },
-        body: JSON.stringify({
-          urls: p.useUrl ? p.url.split(/\s+/).filter(Boolean) : [],
-          text: p.usePaste ? p.pastedText : "",
-          files: p.useFile ? files : [],
-          mode: p.mode,
-          provider: p.provider,
-          filters: p.filters,
-          links: p.links,
-          keys: { youtube: keys.youtube || undefined, gemini: keys.gemini || undefined, openai: keys.openai || undefined },
-        }),
+        body,
       });
       const raw = await res.text();
       let data: (ExtractResponse & { error?: string }) | null = null;

@@ -33,7 +33,9 @@ const oneLine = (v: FormDataEntryValue | null, max: number) => String(v ?? "").r
 export async function POST(req: Request) {
   const access = await guard(req, 3);
   if (access.error) return access.error;
-  const to = process.env.CONTACT_EMAIL || "yukimitsuyamamura0315@gmail.com";
+  // 宛先は環境変数だけで持つ（公開リポジトリのソースに個人のアドレスを書かない）。未設定ならお問い合わせは停止
+  const to = process.env.CONTACT_EMAIL?.trim();
+  if (!to) return fail("お問い合わせは現在準備中です。", 503);
   let form: FormData;
   try {
     // 先に受信サイズを上限つきで読んでから解析する（巨大な送信でメモリを使い切られないように）
@@ -70,8 +72,17 @@ export async function POST(req: Request) {
     out.append(`attachment_${n}`, v, oneLine(v.name, 100) || `file_${n}`);
   }
   try {
-    const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(to)}`, { method: "POST", body: out, headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
-    if (!res.ok) return fail("送信に失敗しました。時間をおいて再度お試しください。", 502);
+    // FormSubmit は送信元ページ（Referer）でフォームを識別するため、サーバーからの送信でもこのサイトの URL を付ける
+    const site = new URL(req.url).origin;
+    const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(to)}`, {
+      method: "POST",
+      body: out,
+      headers: { Accept: "application/json", Referer: `${site}/`, Origin: site },
+      signal: AbortSignal.timeout(15_000),
+    });
+    // FormSubmit は未有効化などの失敗でも 200 と { success: "false" } を返すため、本文まで確認する
+    const j = (await res.json().catch(() => null)) as { success?: unknown } | null;
+    if (!res.ok || !(j?.success === true || j?.success === "true")) return fail("送信に失敗しました。時間をおいて再度お試しください。", 502);
     return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return fail("通信エラーが発生しました。", 502);

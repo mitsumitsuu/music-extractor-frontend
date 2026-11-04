@@ -8,7 +8,8 @@ import type { Filters, HealthResponse, Preset, UploadFile } from "@/lib/types";
 import { Card, Field, Segmented, Switch, btn, cx, inputCls, useRadioKeys, useToast } from "./ui";
 import { VoiceInput } from "./VoiceInput";
 
-const MAX_TOTAL = 4 * 1024 * 1024;
+// PDF・画像は送信時に base64 化で約 1.33 倍になる。Vercel の受信上限 4.5MB に収まるよう合計 3MB まで
+const MAX_TOTAL = 3_000_000;
 
 /** PDF・画像を base64 に（FileReader はブラウザ内部で変換するので、自前で文字列連結するより速く省メモリ） */
 const toBase64 = (file: File) =>
@@ -76,7 +77,7 @@ export function ExtractForm({
       const read = await Promise.all(arr.map(readFile));
       const next = [...files, ...read].slice(0, 10);
       if (next.reduce((n, x) => n + x.size, 0) > MAX_TOTAL) {
-        toast("ファイルの合計は4MBまでです", "err");
+        toast("ファイルの合計は3MBまでです", "err");
         return;
       }
       setFiles(next);
@@ -154,7 +155,7 @@ export function ExtractForm({
               >
                 <Upload className="mb-2 h-8 w-8 text-indigo-600" aria-hidden />
                 <span className="text-sm font-bold">ファイルを選択 / ここにドロップ</span>
-                <span className="mt-1 text-xs text-slate-600 dark:text-slate-400">CSV・Excel・テキスト・PDF・画像（合計4MBまで）</span>
+                <span className="mt-1 text-xs text-slate-600 dark:text-slate-400">CSV・Excel・テキスト・PDF・画像（合計3MBまで）</span>
                 <input type="file" multiple className="sr-only" accept=".csv,.tsv,.txt,.xlsx,.xls,.ods,.pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ""; }} />
               </label>
               {files.length > 0 && (

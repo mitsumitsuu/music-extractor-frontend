@@ -115,7 +115,7 @@ export function SettingsModal({
             {keyRow("gemini", "Gemini API キー", health?.gemini, "", "https://aistudio.google.com/apikey")}
             {keyRow("openai", "OpenAI（ChatGPT）API キー", health?.openai, "", "https://platform.openai.com/api-keys")}
             {keyRow("youtube", "YouTube Data API キー", health?.youtube, "", "https://console.cloud.google.com/apis/library/youtube.googleapis.com")}
-            <Switch checked={prefs.rememberKeys} onChange={(v) => setPrefs({ ...prefs, rememberKeys: v })} label="この端末にキーを保存する" />
+            <Switch checked={prefs.rememberKeys} onChange={(v) => setPrefs({ ...prefs, rememberKeys: v })} label="この端末にキー・合言葉を保存する" />
             {health?.passcodeRequired && (
               <Field label="合言葉">
                 {(id) => <input id={id} type="password" autoComplete="off" className={inputCls} value={prefs.passcode} onChange={(e) => setPrefs({ ...prefs, passcode: e.target.value })} />}
@@ -185,6 +185,9 @@ export function SettingsModal({
             {auth?.required && !auth.user && (
               <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">お問い合わせの送信にはログインが必要です。</p>
             )}
+            {health && !health.contact && (
+              <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">お問い合わせは現在準備中です。</p>
+            )}
             <Field label="件名">{(id) => <input id={id} className={inputCls} value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={120} />}</Field>
             <Field label="内容（必須）">{(id) => <textarea id={id} rows={5} className={inputCls} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={5000} required />}</Field>
             <Field label="返信先メール（任意）">{(id) => <input id={id} type="email" autoComplete="email" className={inputCls} value={reply} onChange={(e) => setReply(e.target.value)} maxLength={200} />}</Field>
@@ -193,7 +196,7 @@ export function SettingsModal({
               <input type="file" multiple accept="image/*,video/*" className="sr-only" onChange={(e) => setFiles(Array.from(e.target.files ?? []).slice(0, 5))} />
             </label>
             {files.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">{files.map((f) => f.name).join(", ")}</p>}
-            <button disabled={sending} onClick={send} className={cx(btn.base, btn.filled, "w-full min-h-12")}>
+            <button disabled={sending || (!!health && !health.contact)} onClick={send} className={cx(btn.base, btn.filled, "w-full min-h-12")}>
               <CheckCircle2 className="h-4 w-4" />{sending ? "送信中…" : "管理者に送信"}
             </button>
           </div>

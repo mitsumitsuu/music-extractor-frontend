@@ -14,7 +14,7 @@ export async function GET() {
     gemini: server && !!process.env.GEMINI_API_KEY,
     openai: server && !!process.env.OPENAI_API_KEY,
     passcodeRequired: !!process.env.APP_PASSCODE,
-    contact: true,
+    contact: !!process.env.CONTACT_EMAIL?.trim(),
     auth: { enabled: authEnabled, required: loginRequired(), user: viewer },
   };
   return Response.json(body, { headers: { "Cache-Control": "no-store, private" } });
