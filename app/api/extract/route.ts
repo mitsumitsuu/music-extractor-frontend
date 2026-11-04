@@ -12,10 +12,10 @@ export const maxDuration = 60;
 
 const MAX_URLS = 30;
 const MAX_TEXT = 300_000;
-const MAX_FILE_BYTES = 4_000_000;
+const MAX_FILE_BYTES = 3_000_000;
 const MAX_SEARCH = 20;
 const MAX_KEYLESS_SEARCH = 40;
-const MAX_BODY_BYTES = 6_500_000;
+const MAX_BODY_BYTES = 4_500_000; // Vercel Functions の受信上限と同じ
 const PAGE_CONCURRENCY = 5;
 
 type Candidate = Omit<Song, "id" | "links">;
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   const body = sanitizeExtractRequest(raw, { maxUrls: MAX_URLS, maxText: MAX_TEXT, maxFiles: 10 });
   const { urls, text, files, mode, filters } = body;
   const totalFileBytes = files.reduce((n, f) => n + (f.data ? (f.data.length * 3) / 4 : (f.text ?? "").length), 0);
-  if (totalFileBytes > MAX_FILE_BYTES) return bad("ファイルの合計サイズが大きすぎます（4MBまで）。");
+  if (totalFileBytes > MAX_FILE_BYTES) return bad("ファイルの合計サイズが大きすぎます（3MBまで）。");
   if (!urls.length && !text.trim() && !files.length) return bad("解析するURL・テキスト・ファイルのいずれかを入力してください。");
 
   // 本人のキーを優先。サーバーのキーは許可された利用者だけ（lib/server/guard.ts）

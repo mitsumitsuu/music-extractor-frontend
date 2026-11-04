@@ -8,9 +8,9 @@ export function proxy(request: NextRequest) {
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
-    // <style> は nonce 付きのみ。style="" 属性（framer-motion・Tailwind の動的値）だけ style-src-attr で許可する
+    // <style> は nonce 付きのみ。画面はブラウザ側で描画し、動的なスタイルは CSSOM（element.style）で設定されるため
+    // style="" 属性の許可（'unsafe-inline'）も不要。開発時のみ Next.js の開発用表示のために許可する
     dev ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' 'nonce-${nonce}'`,
-    "style-src-attr 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self' data:",
     "connect-src 'self'",
