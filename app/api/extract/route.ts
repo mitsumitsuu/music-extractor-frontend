@@ -48,7 +48,7 @@ export async function POST(req: Request) {
 
   // 本文は上限つきで読む（文字列・ファイルの上限は sanitize 後にも再確認）
   const parsed = await readJsonLimited(req, MAX_BODY_BYTES);
-  if (!parsed.ok) return parsed.reason === "too_large" ? bad("送信データが大きすぎます（合計6MBまで）。", 413) : bad("リクエストの形式が正しくありません。");
+  if (!parsed.ok) return parsed.reason === "too_large" ? bad("送信データが大きすぎます。ファイルを減らすか小さくしてください。", 413) : bad("リクエストの形式が正しくありません。");
   const raw = parsed.value;
   const body = sanitizeExtractRequest(raw, { maxUrls: MAX_URLS, maxText: MAX_TEXT, maxFiles: 10 });
   const { urls, text, files, mode, filters } = body;

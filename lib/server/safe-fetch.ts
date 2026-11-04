@@ -9,7 +9,7 @@ import { lookup as dnsLookup } from "node:dns";
 import http, { type IncomingMessage } from "node:http";
 import https from "node:https";
 import { BlockList, isIP } from "node:net";
-import { Readable } from "node:stream";
+import { pipeline, Readable } from "node:stream";
 import zlib from "node:zlib";
 
 const MAX_REDIRECTS = 3;
@@ -89,16 +89,16 @@ function request(u: URL, signal: AbortSignal): Promise<RawResponse> {
 }
 
 /** 受信サイズ（圧縮展開後）を制限しながら本文を読む */
-async function readLimited(res: RawResponse, maxBytes: number): Promise<string> {
+export async function readLimited(res: RawResponse, maxBytes: number): Promise<string> {
   const enc = String(res.headers["content-encoding"] ?? "identity").toLowerCase().trim();
-  let src: Readable = res.stream;
-  if (enc === "gzip" || enc === "x-gzip") src = res.stream.pipe(zlib.createGunzip());
-  else if (enc === "deflate") src = res.stream.pipe(zlib.createInflate());
-  else if (enc === "br") src = res.stream.pipe(zlib.createBrotliDecompress());
-  else if (enc !== "identity" && enc !== "") {
+  const decoder =
+    enc === "gzip" || enc === "x-gzip" ? zlib.createGunzip() : enc === "deflate" ? zlib.createInflate() : enc === "br" ? zlib.createBrotliDecompress() : null;
+  if (!decoder && enc !== "identity" && enc !== "") {
     res.stream.destroy();
     return "";
   }
+  // pipe() は途中の切断・タイムアウトを展開側へ伝えず読み込みが止まり続けるため、pipeline() でエラーも伝える
+  const src: Readable = decoder ? pipeline(res.stream, decoder, () => {}) : res.stream;
   const chunks: Buffer[] = [];
   let total = 0;
   try {

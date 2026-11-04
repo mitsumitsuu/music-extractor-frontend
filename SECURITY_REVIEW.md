@@ -16,6 +16,14 @@
 | お問い合わせ | 添付をファイル先頭バイト（マジックバイト）でも検証（Content-Type 偽装・SVG 拒否）。HEIC/MOV（iPhone）は許可。 |
 | ヘッダー/CSP | `style-src` から **`'unsafe-inline'` を削除**（`<style>` は nonce 付きのみ。`style=""` 属性だけ `style-src-attr` で許可）。Chromium で違反 0 件・表示/モーダル正常を確認。`X-Permitted-Cross-Domain-Policies: none` を追加。マイクは `/` のみ `self`（従来どおり、実ヘッダーで確認）。 |
 | クライアント | Excel 読み込み前に 4MB 上限（`PlaylistTool`）。 |
+| 2回目の点検で追加 | ① gzip 等で返すサイトが途中で切断／停止すると URL 取得が終わらず関数が最大 60 秒占有される不具合を修正（`pipe()`→`pipeline()`）。② 厳格化した CSP で Next.js 標準の 404 ページ（ノンスなしの `<style>`）が崩れるため、自前の `app/not-found.tsx`・`app/global-error.tsx` を追加（エラー詳細は表示しない）。 |
+
+## 実際に試して確認したこと（ローカルの本番ビルド＋curl／Playwright）
+- SSRF: `127.0.0.1`・`localhost`・`[::1]`・`0x7f.1`・`169.254.169.254`、`/etc/hosts` で 127.0.0.1 になる名前（接続時検査）をすべて拒否。途中切断・停止は約 0.3 秒でエラー終了、圧縮爆弾は 2MB で打ち切り。
+- CSP: PC／iPhone 13 表示で、抽出→結果→編集→各画面→設定の全タブ→404 まで違反 0 件。
+- ログイン（テスト用の鍵で作ったセッション）: 許可リスト内のみログイン扱い、`@oit.ac.jp` 指定で `…@oit.ac.jp.attacker.com` は拒否、改ざん Cookie は拒否、サーバーのキーは `SERVER_KEY_EMAILS` のみ。Google への遷移は PKCE 付き、Cookie は HttpOnly・SameSite=Lax。ログイン/ログアウト後の戻り先に外部 URL を渡しても自サイトに置き換わる（オープンリダイレクトなし）。CSRF トークンなしは拒否。
+- お問い合わせ: SVG・EXE を PNG と偽った添付・5MB 超・10MB の本文・別サイトからの送信・不正な返信先をすべて拒否。PNG・HEIC は通過。
+- YouTube API キーのヘッダー送信が Google に受理されること（偽キーで「キー無効」応答＝ヘッダーを読んでいる）。
 
 ## 問題なしを確認した点
 - Google ログイン: メール確認済みのみ、Cookie は JWE・HttpOnly・Secure・SameSite=Lax、保存は最小限（メール・表示名）、サーバーのキーは `SERVER_KEY_EMAILS` のみ（既定は誰も使えない）。
@@ -30,4 +38,7 @@
 4. `CONTACT_EMAIL` 未設定時の既定の宛先が `app/api/contact/route.ts` に直書き。Vercel に `CONTACT_EMAIL` を設定すれば不要（設定後に既定値を削除可）。
 5. 合言葉（`APP_PASSCODE`）はブラウザの localStorage に保存される。ログイン（Google）有効時は使わない運用を推奨。
 6. `next-auth` は 5.0.0-beta.32（正式版が出たら更新）。
-7. このサンドボックスは `cdn.sheetjs.com` に届かないため、`xlsx` 実体なしで lint/build を確認（`xlsx` は動的 import のため影響なし）。CI（GitHub Actions）で `npm ci` が通ることを確認してください。
+7. **（セキュリティ外の既存不具合）** 抽出画面のファイル上限は 4MB だが、送信時に base64 化され約 5.6MB になり、Vercel の受信上限 4.5MB を超える。3MB 超の PDF・画像は Vercel 側で 413 になる可能性が高い。画面側（`components/ExtractForm.tsx` の `MAX_TOTAL`）は UI 改善の PR と衝突するため未変更。上限を約 3MB にするのが簡単な対処。
+8. `style-src-attr` は iOS 15.4 未満の Safari では未対応（その場合スタイル属性が効かない）。2026 年時点で該当端末はごく少数。
+9. 本番・プレビューの URL はこの作業環境から閲覧できなかったため、Vercel 上での動作は未確認（ローカルの本番ビルドで確認済み）。
+10. このサンドボックスは `cdn.sheetjs.com` に届かないため、`xlsx` 実体なしで lint/build を確認（`xlsx` は動的 import のため影響なし）。CI（GitHub Actions）で `npm ci` が通ることを確認してください。
