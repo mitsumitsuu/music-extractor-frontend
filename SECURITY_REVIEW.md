@@ -52,18 +52,15 @@
 - Gmail に FormSubmit の「Activate Form」メール（2026-08-09、未開封）があり、**まだ有効化されていない**。有効化しないと管理者にメールが届かない（修正前は届かなくても「送信しました」と表示されていた）。
 - Vercel の環境変数 `CONTACT_EMAIL` に宛先を設定し、初回送信で届く有効化メールの「Activate Form」を押す。有効化後に届くランダム文字列を `CONTACT_EMAIL` に入れればアドレスも隠せる。
 
-## 本番環境（Vercel）の設定状況（2026-11-04 確認）
-- **環境変数が 1 つも設定されていなかった** → 本番は **Google ログインが無効**（`/api/health` で `auth.enabled: false`）で、誰でもログインなしで使える状態。サーバーの API キーも未設定のため、キーが使われる被害はないが、外部ページ取得などは誰でも実行できる。
-- 対応済み: `CONTACT_EMAIL` を本番・プレビューに設定（暗号化）。次のデプロイから反映。
-- 対応済み: お問い合わせのサーバー送信に、このサイトの URL を Referer/Origin として付与（FormSubmit が送信元ページでフォームを識別するため。作業環境から formsubmit.co に接続できず実送信は未確認）。
+## 本番環境（Vercel）の設定状況（2026-11-04 更新）
+- 当初は環境変数が 1 つも無く、本番は Google ログインが無効（誰でもログインなしで利用可）だった。
+- 対応済み: `AUTH_SECRET`・`AUTH_GOOGLE_ID`・`AUTH_GOOGLE_SECRET`（Sensitive）と `CONTACT_EMAIL` を設定し、本番で `auth.enabled: true / required: true` を確認。OAuth クライアントは Google Cloud「My First Project」に作成。
+- 対応済み: Auth.js の既定ロガーがログイン失敗時に ID トークンの中身（メール・氏名・画像 URL）をログに出していたため、エラー種別だけを出す独自ロガーに変更。
+- プライバシーポリシー `/privacy` を公開（Google の「アプリを公開」に必要）。
 - プレビュー URL は Vercel Authentication（Standard Protection）で保護済み。
 
-### ログインを有効にする手順（Google アカウントでの操作が必要）
-1. Google Cloud Console → 「API とサービス」→「認証情報」→「OAuth クライアント ID を作成」→ 種類「ウェブ アプリケーション」。
-   承認済みのリダイレクト URI: `https://music-extractor-frontend.vercel.app/api/auth/callback/google`
-2. Vercel → Project → Settings → Environment Variables（Production）に追加:
-   `AUTH_GOOGLE_ID`・`AUTH_GOOGLE_SECRET`（1 の値）、`AUTH_SECRET`（32 バイト以上の乱数）。任意で `AUTH_ALLOWED_EMAILS`（ログインできる人を限定）、`SERVER_KEY_EMAILS`。
-3. 再デプロイ（main への次のマージでも可）。`/api/health` が `auth.enabled: true` になれば完了。
+### 誰でもログインできるようにする（Google Cloud 側）
+Google Auth Platform →「ブランディング」でホームページ `https://music-extractor-frontend.vercel.app`・プライバシーポリシー `https://music-extractor-frontend.vercel.app/privacy`・承認済みドメイン `music-extractor-frontend.vercel.app` を入力 →「対象」→「アプリを公開」。使うのはメール・プロフィールのみなので審査は不要。
 
 ### レート制限ルール（任意・ダッシュボードで追加）
 Vercel → Project → Firewall → 「Add New Rule」: 条件「Request Path が正規表現 `^/api/(extract|contact)$` に一致」かつ「Method = POST」、動作「Rate Limit」、Fixed Window 60 秒・20 リクエスト・キー IP、超過時 429。

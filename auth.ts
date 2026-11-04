@@ -21,6 +21,17 @@ export const { handlers, auth } = NextAuth({
   providers: [Google],
   // 本番でのデバッグログ（プロフィールやトークンの出力）を確実に無効化
   debug: false,
+  // 既定のロガーは失敗時に Google から受け取った ID トークンの中身（メール・名前・画像 URL）までログに出すため、
+  // エラーの種類と短い理由だけを記録する（個人情報をログに残さない）
+  logger: {
+    error: (error: Error) => {
+      const e = error as Error & { type?: string; cause?: { err?: unknown } };
+      const cause = e.cause?.err instanceof Error ? e.cause.err.message.slice(0, 120) : "";
+      console.error(`[auth][error] ${e.type ?? e.name}${cause ? `: ${cause}` : ""}`);
+    },
+    warn: (code: string) => console.warn(`[auth][warn] ${code}`),
+    debug: () => {},
+  },
   session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60, updateAge: 24 * 60 * 60 },
   // Auth.js 既定のログイン/エラーページは使わずトップへ戻し、画面上でメッセージを出す
   pages: { signIn: "/", error: "/" },
