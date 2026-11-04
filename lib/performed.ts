@@ -1,5 +1,5 @@
 // 演奏済みリスト（過去の公演で演奏した曲）。貼り付けたテキストをそのまま保存し、曲名キーで照合する
-import { normalize, songKey } from "./parse";
+import { isSeparatorLine, normalize, songKey } from "./parse";
 
 export type PerformedEntry = { title: string; producer?: string; key: string };
 
@@ -14,7 +14,7 @@ export function parsePerformedLine(raw: string): { title: string; producer?: str
     .replace(/[（(]\s*BPM\s*[\d.]+\s*[）)]/gi, " ")
     .replace(/\s+\d{1,3}:\d{2}(?::\d{2})?\s*$/, "")
     .trim();
-  if (!cleaned || cleaned.startsWith("#")) return null;
+  if (!cleaned || cleaned.startsWith("#") || isSeparatorLine(cleaned)) return null;
   if (/^\[[^\]]*]/.test(cleaned)) return null; // セトリのテキスト書き出しにある「[MC] …」などのブロック行
   const parts = cleaned.split(/\s+[/／|｜]\s+|\s*／\s*|\t+/).map((p) => p.trim()).filter(Boolean);
   const title = parts[0];

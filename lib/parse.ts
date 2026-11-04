@@ -167,6 +167,9 @@ export function splitCsvLine(line: string): string[] {
   return cols;
 }
 
+/** `=====` `-----` `━━━` `***` のような区切り線（貼り付けたテキストの見出し・罫線）。曲名ではない */
+export const isSeparatorLine = (s: string): boolean => /^[=_\-─━―~〜*＊#]{3,}$/.test(normalize(s));
+
 const RANK_CELL = /^(?:第?\s*\d{1,4}\s*位?|#\d{1,4}|No\.?\s*\d{1,4})$/i;
 
 /** 貼り付けテキストから楽曲行を抽出（見出しや空行・URLのみ行を除外） */
@@ -174,7 +177,7 @@ export function parseTextBlock(text: string): { title: string; producer?: string
   const out: { title: string; producer?: string; vocal?: string; url?: string }[] = [];
   for (const rawLine of splitLines(text)) {
     if (rawLine.length > MAX_TEXT_LINE) continue;
-    if (!normalize(rawLine)) continue;
+    if (!normalize(rawLine) || isSeparatorLine(rawLine)) continue;
     const line = normalize(rawLine.replace(/\t+/g, " / "));
     if (/^(ランキング|順位|曲名|タイトル|title|rank)[\s,]/i.test(line)) continue;
     const urlMatch = line.match(/https?:\/\/\S+/);

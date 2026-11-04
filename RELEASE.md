@@ -5,6 +5,7 @@
 1. ローカル検証
    - 型チェック: `npx tsc --noEmit`
    - ESLint: `npm run lint`
+   - 単体テスト: `npm test`
    - プロダクションビルド: `npm run build`
    - 開発サーバで動作確認: `npm run dev`
 
@@ -27,7 +28,7 @@
      ```
 
 4. CI / CD
-   - `.github/workflows/ci.yml` を追加済み（lint + build を実行）
+   - `.github/workflows/ci.yml` を追加済み（lint + test + build を実行）
    - デプロイは Vercel を推奨。Vercel で GitHub 統合を行い、`main` を本番に紐付ける。
    - Vercel を使う場合、`VERCEL_TOKEN` と必要な環境変数を Vercel プロジェクトに設定する。
 

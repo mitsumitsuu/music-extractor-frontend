@@ -10,7 +10,7 @@ describe("parsePerformedLine", () => {
     ["千本桜（BPM 154）", { title: "千本桜", producer: undefined }],
     ["千本桜\t黒うさP", { title: "千本桜", producer: "黒うさP" }],
   ])("%s", (line, expected) => expect(parsePerformedLine(line)).toEqual(expected));
-  it.each([[""], ["   "], ["# 見出し"], ["[MC] トーク 2:00"], ["-----"], ["・・・"]])("曲ではない行 %j は null", (line) => expect(parsePerformedLine(line)).toBeNull());
+  it.each([[""], ["   "], ["# 見出し"], ["[MC] トーク 2:00"], ["-----"], ["====="], ["・・・"]])("曲ではない行 %j は null", (line) => expect(parsePerformedLine(line)).toBeNull());
 });
 
 describe("parsePerformed / appendPerformed", () => {

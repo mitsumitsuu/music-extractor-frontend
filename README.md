@@ -68,12 +68,33 @@ Google アカウントでログインできます。パスワードはこのサ�
 - `POST /api/contact` … お問い合わせ（宛先は環境変数 `CONTACT_EMAIL`）
 - `/api/auth/*` … Google ログイン（Auth.js）
 
+## ドキュメント
+| 文書 | 内容 |
+|---|---|
+| [docs/usage.md](docs/usage.md) | 使い方（入力形式・モード・絞り込み・書き出し・セトリ） |
+| [docs/setup.md](docs/setup.md) | 設定手順（ローカル起動・API キー・Google ログイン） |
+| [docs/deploy.md](docs/deploy.md) | デプロイ手順（Vercel・確認項目・元に戻す） |
+| [docs/env.md](docs/env.md) | 環境変数一覧（値は書かない） |
+| [docs/known-limitations.md](docs/known-limitations.md) | 既知の制限（上限・判定が曖昧になるところ） |
+| [docs/development.md](docs/development.md) | 開発メモ（構成・テスト方針・性能の測り方） |
+| [QUALITY_NOTES.md](QUALITY_NOTES.md) | 品質改善の記録（テスト・性能・エッジケース） |
+| [USAGE.md](USAGE.md) / [UI_CHANGES.md](UI_CHANGES.md) / [RELEASE.md](RELEASE.md) | 短い操作メモ / UI 改善の記録 / リリース手順 |
+
+画面には説明文を出さない方針のため、操作や入力形式の説明はこれらの文書にあります。
+
 ## 開発
 ```bash
-npm install
-cp .env.example .env.local   # 必要なキーを記入
+npm ci
+cp .env.example .env.local   # 必要なキーを記入（全部空でも動く）
 npm run dev
 ```
+`npm ci` が `cdn.sheetjs.com`（Excel 用の `xlsx` の配布元）で失敗する場合は [docs/setup.md](docs/setup.md) を参照。
+
+| コマンド | 内容 |
+|---|---|
+| `npm run lint` | ESLint |
+| `npm test` | 単体テスト（Vitest。`lib/` の解析・重複除去・整形・検証） |
+| `npm run build` | 本番ビルド |
 
 ## デプロイ
-GitHub の `main` に push すると Vercel が自動デプロイします。環境変数は `.env.example` を参照して Vercel に設定してください。
+`main` に Pull Request をマージすると Vercel が本番に自動デプロイします（`main` へ直接 push しない）。手順・確認項目・元に戻し方は [docs/deploy.md](docs/deploy.md)、環境変数は [docs/env.md](docs/env.md) と `.env.example` を参照してください。

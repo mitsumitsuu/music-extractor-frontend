@@ -130,3 +130,9 @@ label {
     break-inside: avoid;
   }
 }
+
+/* 数百曲の一覧では、画面外の行のレイアウト・描画を省いて表示・選択・入力を軽くする（検索・読み上げ・Tab 移動には影響しない） */
+[aria-label="抽出された曲"] > li {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 150px;
+}

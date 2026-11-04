@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createPreset, decodeSharedPreset, encodePresetForShare, newId, sanitizePreset } from "@/lib/storage";
+import { createPreset, decodeSharedPreset, encodePresetForShare, fitHistory, newId, sanitizePreset, type HistoryEntry } from "@/lib/storage";
+import { song } from "./helpers";
 import { DEFAULT_FILTERS } from "@/lib/types";
 
 describe("共有リンク（encodePresetForShare / decodeSharedPreset）", () => {
@@ -51,5 +52,27 @@ describe("newId", () => {
     const ids = new Set(Array.from({ length: 500 }, newId));
     expect(ids.size).toBe(500);
     for (const id of ids) expect(id).toMatch(/^[0-9a-f]{12}$/);
+  });
+});
+
+describe("fitHistory（履歴の保存容量）", () => {
+  const entry = (id: string, songs: number): HistoryEntry => ({ id, at: 0, presetName: "p", count: songs, songs: Array.from({ length: songs }, (_, i) => song(`曲${i}`)) });
+  it("最新20件まで", () => {
+    const h = Array.from({ length: 30 }, (_, i) => entry(String(i), 1));
+    expect(fitHistory(h).map((e) => e.id)).toEqual(h.slice(0, 20).map((e) => e.id));
+  });
+  it("容量を超える分は古い順に落とし、新しいものを優先", () => {
+    const h = [entry("new", 50), entry("mid", 50), entry("old", 50)];
+    const one = JSON.stringify(h[0]).length + 1;
+    expect(fitHistory(h, one * 2 + 10).map((e) => e.id)).toEqual(["new", "mid"]);
+  });
+  it("1件だけ巨大でも、その件を飛ばして古い履歴は残す", () => {
+    const h = [entry("huge", 2000), entry("small", 1)];
+    expect(fitHistory(h, 5000).map((e) => e.id)).toEqual(["small"]);
+  });
+  it("空配列・既定の上限（約150万文字）に収まる", () => {
+    expect(fitHistory([])).toEqual([]);
+    const h = Array.from({ length: 20 }, (_, i) => entry(String(i), 1000));
+    expect(JSON.stringify(fitHistory(h)).length).toBeLessThanOrEqual(1_500_000);
   });
 });

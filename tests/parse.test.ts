@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyFilters, buildLinks, buildYouTubePlaylistUrls, camelotOf, csvCell, dedupe, dedupeKey, extractVideoIds, neutralizeFormula, normalize,
+  applyFilters, buildLinks, isSeparatorLine, buildYouTubePlaylistUrls, camelotOf, csvCell, dedupe, dedupeKey, extractVideoIds, neutralizeFormula, normalize,
   parseDescription, parseTextBlock, parseTitleLine, parseYouTube, songKey, splitCsvLine, splitLines, toNumberOrEmpty, xmlEscape,
 } from "@/lib/parse";
 import { DEFAULT_FILTERS } from "@/lib/types";
@@ -156,6 +156,12 @@ describe("parseTextBlock", () => {
     expect(parseTextBlock("!!!???")).toHaveLength(1);
     expect(parseTextBlock("100")).toHaveLength(1);
     expect(parseTextBlock("100位\nNo.1\n***")).toEqual([]);
+  });
+  it("区切り線（===== ----- ━━━ ***）は読み飛ばし、記号だけの曲名とは区別する", () => {
+    expect(parseTextBlock("=====\n-----\n_____\n━━━━\n＝＝＝\n***\n千本桜")).toEqual([{ title: "千本桜", url: undefined }]);
+    expect(isSeparatorLine("====")).toBe(true);
+    expect(isSeparatorLine("==")).toBe(false); // 短いものは曲名かもしれない
+    expect(isSeparatorLine("!!!")).toBe(false);
   });
   it("2000 文字を超える行（段落・ゴミ）は読み飛ばす", () => {
     expect(parseTextBlock("x".repeat(2001))).toEqual([]);
