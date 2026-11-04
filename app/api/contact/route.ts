@@ -1,11 +1,26 @@
 import { guard } from "@/lib/server/guard";
+import { readBodyLimited } from "@/lib/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_FILES = 5;
 const MAX_BYTES = 4_000_000;
+const MAX_BODY_BYTES = 4_600_000;
 const EMAIL = /^[^\s@<>()[\],;:"]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,}$/;
+
+/** ファイル先頭の数バイトで実際の形式を確認する（ブラウザが申告する Content-Type は偽装できるため） */
+function looksLikeMedia(b: Uint8Array): boolean {
+  const eq = (o: number, sig: number[]) => sig.every((x, i) => b[o + i] === x);
+  return (
+    eq(0, [0x89, 0x50, 0x4e, 0x47]) || // PNG
+    eq(0, [0xff, 0xd8, 0xff]) || // JPEG
+    eq(0, [0x47, 0x49, 0x46, 0x38]) || // GIF
+    (eq(0, [0x52, 0x49, 0x46, 0x46]) && eq(8, [0x57, 0x45, 0x42, 0x50])) || // WebP
+    eq(4, [0x66, 0x74, 0x79, 0x70]) || // MP4 / MOV / HEIC（ISO BMFF の ftyp）
+    eq(0, [0x1a, 0x45, 0xdf, 0xa3]) // WebM
+  );
+}
 
 const fail = (error: string, status = 400) => Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
 /** 改行・制御文字を除いた1行テキスト（メール件名のヘッダー注入対策） */
@@ -21,7 +36,10 @@ export async function POST(req: Request) {
   const to = process.env.CONTACT_EMAIL || "yukimitsuyamamura0315@gmail.com";
   let form: FormData;
   try {
-    form = await req.formData();
+    // 先に受信サイズを上限つきで読んでから解析する（巨大な送信でメモリを使い切られないように）
+    const raw = await readBodyLimited(req, MAX_BODY_BYTES);
+    if (!raw) return fail("送信内容が大きすぎます。", 413);
+    form = await new Response(raw as BodyInit, { headers: { "content-type": req.headers.get("content-type") ?? "" } }).formData();
   } catch {
     return fail("送信内容を読み取れませんでした。");
   }
@@ -44,7 +62,8 @@ export async function POST(req: Request) {
   let size = 0, n = 0;
   for (const [k, v] of form.entries()) {
     if (!k.startsWith("attachment") || !(v instanceof File)) continue;
-    if (!/^(image|video)\//.test(v.type)) return fail("添付できるのは画像・動画のみです。");
+    if (!/^(image|video)\/[\w.+-]+$/.test(v.type) || v.type === "image/svg+xml") return fail("添付できるのは画像・動画のみです。");
+    if (!looksLikeMedia(new Uint8Array(await v.slice(0, 16).arrayBuffer()))) return fail("添付できるのは画像・動画のみです。");
     size += v.size;
     if (++n > MAX_FILES) return fail(`添付ファイルは${MAX_FILES}個までです。`);
     if (size > MAX_BYTES) return fail("添付ファイルは合計4MBまでです。");
