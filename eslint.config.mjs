@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // 手動で使う補助スクリプト（旧 .eslintignore から移動）
+    "scripts/**",
   ]),
 ]);
 

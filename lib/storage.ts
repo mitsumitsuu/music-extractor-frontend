@@ -22,6 +22,26 @@ export type Prefs = {
 
 export type HistoryEntry = { id: string; at: number; presetName: string; count: number; songs: Song[] };
 
+export const MAX_HISTORY_ENTRIES = 20;
+/** 履歴に使う保存容量の目安（文字数）。localStorage は約 5MB で、プリセットのテキストなどと分け合うため控えめにする */
+export const MAX_HISTORY_CHARS = 1_500_000;
+
+/**
+ * 履歴を最新 20 件・容量の範囲内にする。新しいものから順に入れ、入りきらない（巨大な）項目は飛ばす。
+ * 保存に失敗して履歴が丸ごと古いままになったり、無言で消えたりするのを防ぐ。
+ */
+export function fitHistory(h: HistoryEntry[], maxChars = MAX_HISTORY_CHARS): HistoryEntry[] {
+  const out: HistoryEntry[] = [];
+  let used = 2;
+  for (const e of h.slice(0, MAX_HISTORY_ENTRIES)) {
+    const size = JSON.stringify(e).length + 1;
+    if (used + size > maxChars) continue;
+    out.push(e);
+    used += size;
+  }
+  return out;
+}
+
 export const DEFAULT_PREFS: Prefs = { theme: "system", confirmDelete: true, confirmReset: true, rememberKeys: false, passcode: "" };
 
 export function newId(): string {
@@ -134,7 +154,7 @@ export const store = {
     write(K.keys, k);
   },
   loadHistory: () => read<HistoryEntry[]>(K.history, []),
-  saveHistory: (h: HistoryEntry[]) => write(K.history, h.slice(0, 20)),
+  saveHistory: (h: HistoryEntry[]) => write(K.history, fitHistory(h)),
   /** セトリ（検証は lib/setlist.ts の sanitizeSetlist で行う） */
   loadSetlistsRaw: (): unknown[] => { const v = read<unknown>(K.setlists, []); return Array.isArray(v) ? v : []; },
   saveSetlists: (list: unknown[]) => write(K.setlists, list),

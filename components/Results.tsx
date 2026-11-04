@@ -8,6 +8,7 @@ import type { Setlist } from "@/lib/setlist";
 import { pickRandom } from "@/lib/stats";
 import type { ExtractResponse, Song } from "@/lib/types";
 import { CheckBox, Card, StateView, btn, cx, inputCls, useToast } from "./ui";
+import { Memo } from "./Memo";
 import { ResultsStats } from "./ResultsStats";
 import { SetlistAddModal, type SetlistTarget } from "./SetlistAddModal";
 import { SongEditor } from "./SongEditor";
@@ -248,6 +249,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
       {/* 一覧（画面表示。PC もスマホも同じ並び。横スクロールなし） */}
       <ul className="mt-3 space-y-2 print:hidden" aria-label="抽出された曲">
         {view.map((s) => (
+          <Memo key={s.id} deps={[s, selected.has(s.id), performedIds.has(s.id), order.get(s.id)]}>{() => (
           <li key={s.id} className={cx("flex items-start gap-1 rounded-2xl border py-1 pl-1 pr-2", selected.has(s.id) ? "border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-500/10" : "border-slate-200 dark:border-slate-700")}>
             <CheckBox checked={selected.has(s.id)} onChange={() => toggleSel(s.id)} label={`${s.title}を選択`} />
             <div className="min-w-0 flex-1 py-2">
@@ -268,6 +270,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
             </div>
             <button onClick={() => setEditing(s)} aria-label={`${s.title}の曲情報を編集`} className={cx(btn.base, btn.soft, "mt-1 shrink-0 px-3")}><Pencil className="h-4 w-4" aria-hidden />編集</button>
           </li>
+          )}</Memo>
         ))}
       </ul>
       {view.length === 0 && <StateView className="mt-4 print:hidden" icon={<Music2 className="h-9 w-9" />} title="条件に合う曲がありません">
@@ -281,6 +284,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
         </thead>
         <tbody>
           {view.map((s) => (
+            <Memo key={s.id} deps={[s, order.get(s.id)]}>{() => (
             <tr key={s.id} className="border-b border-slate-300">
               <td className="px-2 py-1.5 tabular-nums">{order.get(s.id)}</td>
               <td className="px-2 py-1.5 font-bold">{s.title}</td>
@@ -291,6 +295,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
               <td className="px-2 py-1.5">{s.mmd ?? "-"}</td>
               <td className="px-2 py-1.5 text-right tabular-nums">{fmt(s.views)}</td>
             </tr>
+            )}</Memo>
           ))}
         </tbody>
       </table>
