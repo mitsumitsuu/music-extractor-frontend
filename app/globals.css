@@ -10,6 +10,15 @@
 html {
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
+  /* キーボード移動・自動スクロールで、要素が上の固定ヘッダー（＋結果一覧の見出し行）や
+     スマホ下部の固定バーに隠れないようにする（WCAG 2.4.11） */
+  scroll-padding-top: calc(max(0.625rem, env(safe-area-inset-top)) + 7.5rem);
+  scroll-padding-bottom: calc(9.5rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 48rem) {
+  html {
+    scroll-padding-bottom: 1rem;
+  }
 }
 
 /* 色の基本トークン（タブの面と本文の面を一致させるために CSS からも参照） */

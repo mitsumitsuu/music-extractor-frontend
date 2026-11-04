@@ -118,6 +118,9 @@ export function PresetTabs({
                 {renaming !== p.id && (
                   <button
                     tabIndex={-1}
+                    // タブ列（tablist）の中に置けるのは tab だけなので読み上げからは外す。
+                    // キーボードは Delete キー、読み上げ利用者はタブ操作列の「閉じる」で同じことができる
+                    aria-hidden
                     onClick={() => onClose(p.id)}
                     onPointerDown={(e) => e.stopPropagation()}
                     aria-label={`${p.name}を閉じる`}

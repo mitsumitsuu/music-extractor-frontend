@@ -47,7 +47,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
-              role={t.tone === "err" ? "alert" : undefined}
               className={cx(
                 "pointer-events-auto flex max-w-md items-center gap-2.5 rounded-xl py-2.5 pl-3.5 text-sm font-bold shadow-lg",
                 t.action ? "pr-2" : "pr-4",
@@ -236,11 +235,14 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
 }
 
 /** チェックボックス。見た目は 20px、タップできる範囲は 44px 以上（スマホでも押し間違えない）。text を渡すと右に文言を並べ、文言ごと押せる */
-export function CheckBox({ checked, onChange, label, text, disabled, className }: { checked: boolean; onChange: (v: boolean) => void; label: string; text?: ReactNode; disabled?: boolean; className?: string }) {
+export function CheckBox({ checked, indeterminate = false, onChange, label, text, disabled, className }: { checked: boolean; indeterminate?: boolean; onChange: (v: boolean) => void; label: string; text?: ReactNode; disabled?: boolean; className?: string }) {
+  const ref = useRef<HTMLInputElement>(null);
+  // 一部だけ選択中の「－」表示（HTML 属性では指定できないので DOM に直接設定）
+  useEffect(() => { if (ref.current) ref.current.indeterminate = indeterminate; }, [indeterminate]);
   return (
     <label className={cx("inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-full has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50", text ? "pr-3 text-sm font-bold" : "", className)}>
-      <span className="grid h-11 w-11 place-items-center">
-        <input type="checkbox" aria-label={text ? undefined : label} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} className="h-5 w-5 cursor-[inherit] accent-indigo-600" />
+      <span className="grid h-11 w-11 shrink-0 place-items-center">
+        <input ref={ref} type="checkbox" aria-label={text ? undefined : label} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} className="h-5 w-5 cursor-[inherit] accent-indigo-600" />
       </span>
       {text}
     </label>

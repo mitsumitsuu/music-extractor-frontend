@@ -172,27 +172,6 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
           <input type="search" aria-label="結果を検索" value={q} onChange={(e) => setQ(e.target.value)} placeholder="曲名・P名・ボカロで検索" className={cx(inputCls, "pl-10")} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
-          <CheckBox checked={allSelected} onChange={toggleVisible} disabled={!view.length} label="表示中の曲をすべて選択" text={<>すべて選択<span className="ml-1 font-normal text-slate-600 dark:text-slate-400">（{view.length}曲）</span></>} />
-          <div className="ml-auto flex items-center gap-1">
-            <label htmlFor="sort-key" className="sr-only">並べ替え</label>
-            <select id="sort-key" value={sort.key} onChange={(e) => setSortKey(e.target.value as SortKey)} className={cx(inputCls, "!w-auto py-1.5")}>
-              {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-            </select>
-            <button onClick={() => setSort((x) => ({ ...x, desc: !x.desc }))} aria-label={sort.desc ? "降順（押すと昇順）" : "昇順（押すと降順）"} className={btn.icon}>
-              {sort.desc ? <ArrowDown className="h-5 w-5" /> : <ArrowUp className="h-5 w-5" />}
-            </button>
-          </div>
-        </div>
-
-        {selected.size > 0 && (
-          <div className="sticky top-[calc(4.25rem+env(safe-area-inset-top))] z-20 flex items-center gap-1 rounded-2xl bg-indigo-600 py-1 pl-4 pr-1 text-white shadow-md dark:bg-indigo-500" role="status">
-            <span className="min-w-0 flex-1 truncate text-sm font-bold">{selected.size}曲を選択中</span>
-            <button onClick={removeSelected} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-bold hover:bg-white/15"><Trash2 className="h-4 w-4" aria-hidden />削除</button>
-            <button onClick={() => setSelected(new Set())} aria-label="選択を解除" className="grid h-11 w-11 place-items-center rounded-xl hover:bg-white/15"><X className="h-5 w-5" /></button>
-          </div>
-        )}
-
         <div className="flex flex-wrap items-center gap-2">
           {onAddToSetlist && (
             <button onClick={() => setAddOpen(true)} disabled={!target.length} className={cx(btn.base, btn.filled)}>
@@ -231,8 +210,43 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
         </div>
       </div>
 
+      {/* 一覧の見出し行。スクロールしてもヘッダーの下に残り、選択中は一括操作に切り替わる（高さは一定なので一覧がずれない） */}
+      <div className={cx(
+        "sticky top-[calc(max(0.625rem,env(safe-area-inset-top))_+_3.375rem_+_1px)] z-20 -mx-4 mt-4 flex min-h-14 items-center gap-1 border-y px-1 sm:-mx-6 sm:px-3 print:hidden",
+        selected.size ? "border-indigo-300 bg-indigo-50 text-indigo-950 dark:border-indigo-500/50 dark:bg-indigo-950 dark:text-indigo-50" : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900",
+      )}>
+        <CheckBox
+          checked={allSelected}
+          indeterminate={selected.size > 0 && !allSelected}
+          onChange={toggleVisible}
+          disabled={!view.length}
+          label="表示中の曲をすべて選択"
+          className="min-w-0"
+          text={<span className="truncate">{selected.size ? `${selected.size}曲を選択中` : <>すべて選択<span className="ml-1 font-normal text-slate-600 dark:text-slate-400">（{view.length}曲）</span></>}</span>}
+        />
+        <span className="sr-only" aria-live="polite">{selected.size ? `${selected.size}曲を選択中` : ""}</span>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          {selected.size ? (
+            <>
+              <button onClick={removeSelected} className={cx(btn.base, btn.dangerText, "px-3")}><Trash2 className="h-4 w-4" aria-hidden />削除</button>
+              <button onClick={() => setSelected(new Set())} aria-label="選択を解除" className={btn.icon}><X className="h-5 w-5" /></button>
+            </>
+          ) : (
+            <>
+              <label htmlFor="sort-key" className="sr-only">並べ替え</label>
+              <select id="sort-key" value={sort.key} onChange={(e) => setSortKey(e.target.value as SortKey)} className={cx(inputCls, "!w-auto py-1.5")}>
+                {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+              <button onClick={() => setSort((x) => ({ ...x, desc: !x.desc }))} aria-label={sort.desc ? "降順（押すと昇順）" : "昇順（押すと降順）"} className={btn.icon}>
+                {sort.desc ? <ArrowDown className="h-5 w-5" /> : <ArrowUp className="h-5 w-5" />}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* 一覧（画面表示。PC もスマホも同じ並び。横スクロールなし） */}
-      <ul className="mt-4 space-y-2 print:hidden" aria-label="抽出された曲">
+      <ul className="mt-3 space-y-2 print:hidden" aria-label="抽出された曲">
         {view.map((s) => (
           <li key={s.id} className={cx("flex items-start gap-1 rounded-2xl border py-1 pl-1 pr-2", selected.has(s.id) ? "border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-500/10" : "border-slate-200 dark:border-slate-700")}>
             <CheckBox checked={selected.has(s.id)} onChange={() => toggleSel(s.id)} label={`${s.title}を選択`} />
@@ -263,7 +277,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
       {/* 印刷・PDF 用の表（画面には出さない） */}
       <table className="mt-4 hidden w-full text-left text-sm print:table">
         <thead className="border-b-2 border-slate-400">
-          <tr>{["#", "曲名", "ボカロP", "合成音声", "BPM", "Key", "MMD", "再生数"].map((h) => <th key={h} className="px-2 py-2 font-bold">{h}</th>)}</tr>
+          <tr>{["#", "曲名", "ボカロP", "合成音声", "BPM", "Key", "MMD", "再生数"].map((h) => <th key={h} className={cx("px-2 py-2 font-bold", h === "再生数" && "text-right")}>{h}</th>)}</tr>
         </thead>
         <tbody>
           {view.map((s) => (
@@ -294,7 +308,7 @@ function LinkChips({ s }: { s: Song }) {
     s.links.tunebat && { href: s.links.tunebat, label: "Tunebat" },
   ].filter(Boolean) as { href: string; label: string }[];
   return (
-    <div className="mt-1 flex flex-wrap gap-x-1 gap-y-0.5">
+    <div className="-ml-2 mt-1 flex flex-wrap gap-x-1 gap-y-0.5">
       {items.map((l) => (
         <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm font-bold text-indigo-800 hover:bg-indigo-50 pointer-coarse:min-h-11 dark:text-indigo-200 dark:hover:bg-indigo-500/15">
           {l.label}<ExternalLink className="h-3.5 w-3.5" aria-hidden /><span className="sr-only">（新しいタブで開く）</span>

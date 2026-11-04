@@ -27,6 +27,15 @@ const NAV_ITEMS = [["extract", "抽出", Sparkles], ["setlist", "セトリ", Cli
 
 type ResultState = { historyId: string; songs: Song[]; warnings: string[]; meta?: ExtractResponse["meta"]; name: string };
 
+/** 「視差効果を減らす」設定ならスクロールのアニメーションもしない */
+const scrollBehavior = (): ScrollBehavior => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+
+/** 削除した履歴を戻す。削除後に増えた履歴は消さずに、消したものだけを足す */
+const restoreHistory = (before: HistoryEntry[]) => (current: HistoryEntry[]) => {
+  const ids = new Set(current.map((h) => h.id));
+  return [...current, ...before.filter((h) => !ids.has(h.id))].sort((a, b) => b.at - a.at).slice(0, 20);
+};
+
 const omit = <T,>(rec: Record<string, T>, key: string): Record<string, T> => {
   const next = { ...rec };
   delete next[key];
@@ -153,7 +162,7 @@ function AppInner() {
   const auth = health?.auth;
   const needLogin = !!auth?.required && !auth.user;
 
-  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [error]);
+  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() }); }, [error]);
 
   /* ---- 永続化・副作用 ---- */
   usePersist(presets, store.savePresets);
@@ -333,7 +342,7 @@ function AppInner() {
         setHistory((h) => [{ id: historyId, at: Date.now(), presetName: p.name, count: songs.length, songs }, ...h].slice(0, 20));
         toast(here ? `${songs.length}曲を抽出しました` : `「${p.name}」で${songs.length}曲を抽出しました`);
       } else toast("曲が見つかりませんでした", "info");
-      if (here) setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      if (here) setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }), 100);
     } catch (e) {
       if ((e as Error).name === "AbortError") setErr(p.id, "抽出を中止しました。");
       else setErr(p.id, (e as Error).message || "通信エラーが発生しました。");
@@ -426,12 +435,14 @@ function AppInner() {
     { label: "複製", icon: Copy },
     { label: "共有", icon: Share2 },
     { label: "初期化", icon: RefreshCw },
+    { label: "閉じる", icon: X },
   ];
   const runTabAction = (label: string) => {
     if (label === "名前変更") setRenaming(active.id);
     else if (label === "複製") duplicate();
     else if (label === "共有") void share();
     else if (label === "初期化") requestReset();
+    else if (label === "閉じる") requestClose(active.id);
   };
   const initial = auth?.user ? Array.from(auth.user.name || auth.user.email)[0]?.toUpperCase() : "";
 
@@ -505,7 +516,7 @@ function AppInner() {
               aria-labelledby={presetTabId(active.id)}
               className={cx("relative rounded-3xl bg-[var(--surface)] p-3 shadow-sm sm:p-5 print:bg-transparent print:p-0 print:shadow-none", activeIndex === 0 && "rounded-tl-none")}
             >
-              <div className="mb-3 grid grid-cols-4 gap-1 text-sm sm:flex sm:gap-0.5 print:hidden" role="toolbar" aria-label="このタブの操作">
+              <div className="mb-3 grid grid-cols-5 gap-1 text-sm sm:flex sm:gap-0.5 print:hidden" role="toolbar" aria-label="このタブの操作">
                 {tabActions.map((a) => (
                   <button key={a.label} onClick={() => runTabAction(a.label)} className={cx(btn.base, btn.text, "min-w-0 flex-col gap-0.5 !px-1 py-1 text-xs whitespace-nowrap sm:flex-row sm:gap-1.5 sm:!px-3 sm:text-sm")}>
                     <a.icon className="h-4 w-4 shrink-0" aria-hidden />{a.label}
@@ -516,7 +527,7 @@ function AppInner() {
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
                 <div className="min-w-0 lg:col-span-5 print:hidden">
                   {error && (
-                    <div ref={errorRef} role="alert" className="mb-4 flex scroll-mt-20 items-start gap-2.5 rounded-2xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-900 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-50">
+                    <div ref={errorRef} role="alert" className="mb-4 flex items-start gap-2.5 rounded-2xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-900 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-50">
                       <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
                       <p className="min-w-0 flex-1">{error}</p>
                       <button onClick={() => setErr(active.id, "")} aria-label="エラー表示を閉じる" className="-my-1.5 -mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-500/20"><X className="h-4 w-4" /></button>
@@ -525,7 +536,7 @@ function AppInner() {
                   <ExtractForm preset={active} update={update} files={files} setFiles={(f) => setFilesBy((x) => ({ ...x, [active.id]: f }))} health={health} hasUserKey={hasUserKey} appendSpeech={(text) => appendSpeech(active.id, text)} onSpeechActiveChange={onSpeechActiveChange} onOpenSettings={() => openSettings("keys")} busy={loading} />
                   <div className="mt-4 hidden md:block">{startButton}</div>
                 </div>
-                <div ref={resultsRef} className="min-w-0 scroll-mt-20 lg:col-span-7" aria-busy={busyHere}>
+                <div ref={resultsRef} className="min-w-0 lg:col-span-7" aria-busy={busyHere}>
                   {busyHere && !result ? (
                     <div role="status" aria-label="抽出中" className="space-y-3 rounded-3xl border border-slate-200 p-4 dark:border-slate-700 sm:p-6">
                       {[0, 1, 2, 3].map((i) => (
@@ -556,7 +567,7 @@ function AppInner() {
           <div className="mx-auto max-w-3xl space-y-2">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">抽出履歴</h2>
-              {history.length > 0 && <button onClick={() => { const before = history; setHistory([]); toast("履歴をすべて削除しました", "info", { label: "元に戻す", onClick: () => setHistory(before) }); }} className={cx(btn.base, btn.text, btn.dangerText)}><Trash2 className="h-4 w-4" aria-hidden />すべて削除</button>}
+              {history.length > 0 && <button onClick={() => { const before = history; setHistory([]); toast("履歴をすべて削除しました", "info", { label: "元に戻す", onClick: () => setHistory(restoreHistory(before)) }); }} className={cx(btn.base, btn.text, btn.dangerText)}><Trash2 className="h-4 w-4" aria-hidden />すべて削除</button>}
             </div>
             {history.length === 0 && <StateView icon={<History className="h-10 w-10" />} title="履歴はまだありません" />}
             {history.map((h) => (
@@ -566,7 +577,7 @@ function AppInner() {
                   <p className="text-xs text-slate-700 dark:text-slate-300">{new Date(h.at).toLocaleString("ja-JP")}</p>
                 </div>
                 <button onClick={() => { setResults((r) => ({ ...r, [active.id]: { historyId: h.id, songs: h.songs, warnings: [], name: h.presetName } })); setView("extract"); toast(`「${active.name}」タブで開きました`, "info"); }} className={cx(btn.base, btn.tonal)}>開く</button>
-                <button onClick={() => { const before = history; setHistory((x) => x.filter((y) => y.id !== h.id)); toast("履歴を削除しました", "info", { label: "元に戻す", onClick: () => setHistory(before) }); }} className={btn.icon} aria-label={`${h.presetName}（${h.count}曲）の履歴を削除`}><X className="h-5 w-5" /></button>
+                <button onClick={() => { const before = history; setHistory((x) => x.filter((y) => y.id !== h.id)); toast("履歴を削除しました", "info", { label: "元に戻す", onClick: () => setHistory(restoreHistory(before)) }); }} className={btn.icon} aria-label={`${h.presetName}（${h.count}曲）の履歴を削除`}><X className="h-5 w-5" /></button>
               </div>
             ))}
           </div>
