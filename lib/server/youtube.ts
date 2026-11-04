@@ -99,6 +99,16 @@ export async function oembed(url: string, signal?: AbortSignal): Promise<{ title
   }
 }
 
+/** よく使う HTML エンティティ（名前付き・数値）を文字に戻す。&amp;lt; のような二重エスケープを二度戻さないよう1回で置換する */
+export function decodeEntities(s: string): string {
+  const named: Record<string, string> = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+  return s.replace(/&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|(nbsp|amp|lt|gt|quot|apos));/gi, (m, dec?: string, hex?: string, name?: string) => {
+    if (name) return named[name.toLowerCase()];
+    const cp = dec !== undefined ? Number(dec) : parseInt(hex ?? "", 16);
+    return cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : m;
+  });
+}
+
 /** 一般ページ（ランキングサイト等）の本文テキストを取得（SSRF 対策は safe-fetch.ts） */
 export async function fetchPageText(url: string, signal?: AbortSignal): Promise<{ title: string; text: string } | null> {
   try {
@@ -106,11 +116,14 @@ export async function fetchPageText(url: string, signal?: AbortSignal): Promise<
     if (!page) return null;
     const html = page.html;
     const title = (html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "").trim();
-    const text = html
-      .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, " ")
-      .replace(/<br\s*\/?>|<\/(p|div|li|tr|h\d)>/gi, "\n")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    const text = decodeEntities(
+      html
+        .replace(/<!--[\s\S]*?-->/g, " ")
+        .replace(/<head[\s>][\s\S]*?<\/head>/i, " ") // <title> などがランキング1行目にくっつかないように
+        .replace(/<(script|style|noscript|svg|template)[\s\S]*?<\/\1>/gi, " ")
+        .replace(/<br\s*\/?>|<\/(p|div|li|tr|h\d)>/gi, "\n")
+        .replace(/<[^>]+>/g, " "),
+    )
       .split("\n").map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
     return { title, text: text.slice(0, 60_000) };
   } catch {

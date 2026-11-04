@@ -162,12 +162,14 @@ export async function POST(req: Request) {
       providerUsed = ai.provider;
       modelUsed = ai.model;
       let themeDropped = 0;
-      const byKey = new Map(candidates.map((c) => [songKey(c.title), c]));
+      // 候補のキーは1回だけ計算（AI の曲数 × 候補数 の総当たりで毎回正規化しない）
+      const keyed = candidates.map((c) => ({ c, k: songKey(c.title) }));
+      const byKey = new Map(keyed.map(({ c, k }) => [k, c]));
       const aiSongs: Candidate[] = [];
       for (const s of ai.songs) {
         if (filters.theme.trim() && s.matchesTheme === false) { themeDropped++; continue; }
         const k = songKey(s.title);
-        const hit = byKey.get(k) ?? candidates.find((c) => { const ck = songKey(c.title); return ck.length > 1 && (ck.includes(k) || k.includes(ck)); });
+        const hit = byKey.get(k) ?? keyed.find(({ k: ck }) => ck.length > 1 && (ck.includes(k) || k.includes(ck)))?.c;
         aiSongs.push({
           title: s.title,
           producer: s.producer ?? hit?.producer,

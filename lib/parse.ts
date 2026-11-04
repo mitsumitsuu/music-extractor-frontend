@@ -1,26 +1,42 @@
 // 楽曲情報の解析・フィルタ・リンク生成（純粋関数のみ。サーバー/ブラウザ両対応）
 import type { Filters, LinkOptions, Song } from "./types";
 
-/** 全角英数・記号を半角に、空白を正規化 */
+// ゼロ幅文字・BOM・ソフトハイフン（コピペで紛れ込み、見た目に出ないまま重複判定を狂わせる）
+const INVISIBLE = /[\u200b-\u200d\u2060\u00ad\ufeff]/g;
+
+/** 全角英数・記号を半角に、半角カナを全角に、空白を正規化（見えない文字は除去） */
 export function normalize(s: string): string {
   return s
+    .replace(INVISIBLE, "")
+    .replace(/[\uff61-\uff9f]+/g, (m) => m.normalize("NFKC"))
     .replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
     .replace(/　/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-/** 全角数字を含む文字列から数値のみ取り出す（空なら ""） */
+const MAX_COUNT = 1e12;
+
+/** 全角数字・カンマ付き・小数（切り捨て）を含む文字列から数値を取り出す（空なら ""）。上限は 1e12 */
 export function toNumberOrEmpty(v: string): number | "" {
-  const s = normalize(v).replace(/[^0-9]/g, "");
-  return s === "" ? "" : Number.parseInt(s, 10);
+  const t = normalize(v).replace(/[,\s]/g, "");
+  const s = /^\d+(?:\.\d*)?$/.test(t) ? t.split(".")[0] : t.replace(/[^0-9]/g, "");
+  return s === "" ? "" : Math.min(Number.parseInt(s, 10), MAX_COUNT);
 }
 
-/** 重複判定用キー */
+/** 重複判定用キー（記号・空白・大文字小文字・全角半角の違いを無視）。記号だけの題名は "" になる */
 export function songKey(title: string): string {
   return normalize(title)
     .toLowerCase()
     .replace(/[\s"'「」『』【】\[\]()（）・,、.。!！?？~〜\-_/]/g, "");
+}
+
+/**
+ * 重複統合用のキー。「!!!」「…」のように記号だけの曲名でも消えないよう、songKey が空なら記号を残した形を使う。
+ * 本当に空（空白・見えない文字だけ）のときは "" を返す。
+ */
+export function dedupeKey(title: string): string {
+  return songKey(title) || normalize(title).toLowerCase().replace(/\s/g, "");
 }
 
 const KNOWN_VOCALS = [
@@ -36,6 +52,10 @@ const NOISE = [
   /\((Official|MV|PV|Music Video|Lyric Video)[^)]*\)/gi,
   /(Official\s*)?(Music\s*Video|Lyric\s*Video|MV|PV)$/i,
 ];
+
+const MAX_TITLE_LINE = 400;
+/** 1行がこれより長ければ曲の行ではない（段落・ゴミ）として読み飛ばす */
+const MAX_TEXT_LINE = 2000;
 
 /** "1位", "01.", "#3", "No.5" などのランキング接頭辞を除去 */
 function stripRank(line: string): string {
@@ -66,6 +86,8 @@ function findVocals(s: string): string[] {
  * 例: "ロキ / みきとP feat. 鏡音リン・みきとP" "【初音ミク】千本桜【オリジナル】" "DECO*27 - ヴァンパイア feat. 初音ミク"
  */
 export function parseTitleLine(raw: string, channel?: string): { title: string; producer?: string; vocal?: string } | null {
+  // 曲名として長すぎる入力は解析しない（括弧が閉じない超長文で正規表現が極端に遅くなるのを防ぐ）
+  if (raw.length > MAX_TITLE_LINE) return null;
   let line = stripRank(normalize(raw));
   if (!line || line.length < 1) return null;
   if (/^https?:\/\//i.test(line)) return null;
@@ -123,24 +145,54 @@ export function parseTitleLine(raw: string, channel?: string): { title: string; 
   return { title, producer: producer || undefined, vocal: vocal || undefined };
 }
 
+/** 改行コード（CRLF・LF・CR のみ・Unicode 行区切り）で行に分ける */
+export const splitLines = (text: string): string[] => text.split(/\r\n|[\n\r\u2028\u2029]/);
+
+/** CSV 1行を列に分ける（"..." で囲まれたカンマ・"" のエスケープに対応） */
+export function splitCsvLine(line: string): string[] {
+  const cols: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quoted) {
+      if (c !== '"') cur += c;
+      else if (line[i + 1] === '"') { cur += '"'; i++; }
+      else quoted = false;
+    } else if (c === '"' && cur === "") quoted = true;
+    else if (c === ",") { cols.push(cur); cur = ""; }
+    else cur += c;
+  }
+  cols.push(cur);
+  return cols;
+}
+
+const RANK_CELL = /^(?:第?\s*\d{1,4}\s*位?|#\d{1,4}|No\.?\s*\d{1,4})$/i;
+
 /** 貼り付けテキストから楽曲行を抽出（見出しや空行・URLのみ行を除外） */
 export function parseTextBlock(text: string): { title: string; producer?: string; vocal?: string; url?: string }[] {
   const out: { title: string; producer?: string; vocal?: string; url?: string }[] = [];
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line) continue;
-    if (/^(ランキング|順位|曲名|タイトル|title|rank)[\s,\t]/i.test(line)) continue;
+  for (const rawLine of splitLines(text)) {
+    if (rawLine.length > MAX_TEXT_LINE) continue;
+    if (!normalize(rawLine)) continue;
+    const line = normalize(rawLine.replace(/\t+/g, " / "));
+    if (/^(ランキング|順位|曲名|タイトル|title|rank)[\s,]/i.test(line)) continue;
     const urlMatch = line.match(/https?:\/\/\S+/);
-    const withoutUrl = line.replace(/https?:\/\/\S+/g, "").replace(/\t+/g, " / ").trim();
+    const withoutUrl = line.replace(/https?:\/\/\S+/g, "").trim();
     if (!withoutUrl) continue;
-    // CSV 行（カンマ区切り）なら先頭列を曲名、2列目をP名として扱う
+    // CSV / TSV 行なら、順位の列を飛ばして 先頭列を曲名、次の列をP名として扱う
     let parsed: ReturnType<typeof parseTitleLine>;
-    const cols = rawLine.includes("\t") ? rawLine.split("\t") : rawLine.split(",");
-    if (cols.length >= 2 && !/[\/／]/.test(cols[0]) && cols[0].trim() && !/^\d+$/.test(cols[0].trim())) {
-      parsed = { title: stripRank(normalize(cols[0].replace(/^"|"$/g, ""))), producer: normalize(cols[1].replace(/^"|"$/g, "")) || undefined };
+    let cols = (rawLine.includes("\t") ? rawLine.split("\t") : splitCsvLine(rawLine)).map((c) => normalize(c));
+    let body = withoutUrl;
+    if (cols.length >= 2 && RANK_CELL.test(cols[0])) {
+      cols = cols.slice(1);
+      body = cols.join(" / ").replace(/https?:\/\/\S+/g, "").trim();
+    }
+    if (cols.length >= 2 && !/[\/／]/.test(cols[0]) && cols[0] && !/^\d+$/.test(cols[0])) {
+      parsed = { title: stripRank(cols[0]), producer: cols[1] || undefined };
       if (/^https?:/.test(parsed.producer ?? "")) parsed.producer = undefined;
     } else {
-      parsed = parseTitleLine(withoutUrl);
+      parsed = parseTitleLine(body);
     }
     if (parsed && parsed.title) out.push({ ...parsed, url: urlMatch?.[0] });
   }
@@ -269,7 +321,7 @@ export function applyFilters(songs: Song[], f: Filters, strictStats: boolean): {
 export function dedupe(songs: Song[]): Song[] {
   const map = new Map<string, Song>();
   for (const s of songs) {
-    const k = songKey(s.title);
+    const k = dedupeKey(s.title);
     if (!k) continue;
     const prev = map.get(k);
     if (!prev) { map.set(k, s); continue; }
@@ -288,10 +340,14 @@ export function dedupe(songs: Song[]): Song[] {
   return [...map.values()];
 }
 
+/** 表計算ソフトが数式として実行しうる先頭文字（= + - @ とタブ・改行）の前に ' を付けて無効化 */
+export function neutralizeFormula(s: string): string {
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
 /** CSV の1セルをエスケープ（Excel の数式インジェクション対策込み） */
 export function csvCell(v: unknown): string {
-  let s = v === undefined || v === null ? "" : String(v);
-  if (/^[=+\-@]/.test(s)) s = "'" + s;
+  const s = neutralizeFormula(v === undefined || v === null ? "" : String(v));
   return `"${s.replace(/"/g, '""')}"`;
 }
 

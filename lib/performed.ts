@@ -9,7 +9,7 @@ export const MAX_PERFORMED_TEXT = 200_000;
 export function parsePerformedLine(raw: string): { title: string; producer?: string } | null {
   const cleaned = raw
     .replace(/^\s*\d{1,2}:\d{2}\s+(?=\S)/, "") // 開始時刻付きのセトリ書き出し
-    .replace(/^\s*(?:\d{1,3}\s*[.)．、:：]\s*|[-・●○◆*]\s+)/, "")
+    .replace(/^\s*(?:\d{1,3}\s*[.)．、:：]\s*|[-*]\s+|[・●○◆]\s*)/, "")
     .replace(/\s*※.*$/, "")
     .replace(/[（(]\s*BPM\s*[\d.]+\s*[）)]/gi, " ")
     .replace(/\s+\d{1,3}:\d{2}(?::\d{2})?\s*$/, "")

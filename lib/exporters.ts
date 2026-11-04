@@ -1,5 +1,5 @@
 // 抽出結果の書き出し（ブラウザ専用）
-import { csvCell, xmlEscape, buildYouTubePlaylistUrls, parseYouTube } from "./parse";
+import { csvCell, neutralizeFormula, xmlEscape, buildYouTubePlaylistUrls, parseYouTube } from "./parse";
 import { SETLIST_COLUMNS, setlistRows, setlistsToJSON, type Setlist } from "./setlist";
 import type { Song } from "./types";
 
@@ -44,7 +44,8 @@ export async function exportXLSX(songs: Song[], name: string) {
 }
 
 export function toTSV(songs: Song[]): string {
-  const clean = (v: unknown) => String(v ?? "").replace(/[\t\r\n]+/g, " ");
+  // セル内のタブ・改行は空白に、先頭の = + - @ は数式にならないよう無効化（Excel/スプレッドシートへ貼り付けても実行されない）
+  const clean = (v: unknown) => neutralizeFormula(String(v ?? "").replace(/[\t\r\n]+/g, " ").trim());
   return [COLS.map((c) => c.label).join("\t"), ...songs.map((s) => COLS.map((c) => clean(c.get(s))).join("\t"))].join("\n");
 }
 
