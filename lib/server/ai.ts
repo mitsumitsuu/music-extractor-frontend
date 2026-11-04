@@ -59,21 +59,37 @@ ${material.slice(0, 200_000)}
 出力形式: {"songs":[{"title":"","producer":"","vocal":"","bpm":0,"key":"","mmd":"不明","url":"","matchesTheme":true}]}`;
 }
 
+/** AI の出力は信用しない：型・長さ・URL 形式を検証し、件数にも上限を設ける */
+const clip = (v: unknown, max: number): string | undefined => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
+const httpUrl = (v: unknown): string | undefined => {
+  const t = clip(v, 500);
+  if (!t) return undefined;
+  try {
+    const u = new URL(t);
+    return (u.protocol === "https:" || u.protocol === "http:") && !u.username && !u.password ? u.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 function parseSongs(text: string): AiSong[] {
   const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
-  const json = JSON.parse(start >= 0 ? cleaned.slice(start, end + 1) : cleaned) as { songs?: AiSong[] };
-  return (json.songs ?? [])
-    .filter((s) => s && typeof s.title === "string" && s.title.trim())
+  const json = JSON.parse(start >= 0 ? cleaned.slice(start, end + 1) : cleaned) as { songs?: unknown };
+  const arr = Array.isArray(json.songs) ? (json.songs as Record<string, unknown>[]) : [];
+  return arr
+    .slice(0, 1000)
+    .filter((s) => s && typeof s === "object" && typeof s.title === "string" && s.title.trim())
     .map((s) => ({
-      ...s,
-      title: s.title.trim(),
+      title: clip(s.title, 200)!,
       bpm: typeof s.bpm === "number" && s.bpm > 20 && s.bpm < 400 ? Math.round(s.bpm) : undefined,
-      key: s.key?.trim() || undefined,
-      producer: s.producer?.trim() || undefined,
-      vocal: s.vocal?.trim() || undefined,
-      url: s.url && /^https?:\/\//.test(s.url) ? s.url : undefined,
+      key: clip(s.key, 20),
+      producer: clip(s.producer, 100),
+      vocal: clip(s.vocal, 100),
+      mmd: s.mmd === "あり" || s.mmd === "なし" || s.mmd === "不明" ? s.mmd : undefined,
+      url: httpUrl(s.url),
+      matchesTheme: typeof s.matchesTheme === "boolean" ? s.matchesTheme : undefined,
     }));
 }
 
@@ -97,7 +113,7 @@ async function callGemini(model: string, key: string, material: string, theme: s
     error?: { message?: string };
     candidates?: { content?: { parts?: { text?: string }[] } }[];
   };
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${j.error?.message ?? "エラー"}`);
+  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(j.error?.message ?? "エラー").slice(0, 200)}`);
   const text = j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
   if (!text) throw new Error("Gemini から空の応答が返りました");
   return parseSongs(text);
@@ -128,7 +144,7 @@ async function callOpenAI(model: string, key: string, material: string, theme: s
     choices?: { message?: { content?: string } }[];
   };
   if (res.status === 404 || j.error?.code === "model_not_found") throw new ModelNotFound(model);
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${j.error?.message ?? "エラー"}`);
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(j.error?.message ?? "エラー").slice(0, 200)}`);
   const text = j.choices?.[0]?.message?.content ?? "";
   if (!text) throw new Error("OpenAI から空の応答が返りました");
   return parseSongs(text);

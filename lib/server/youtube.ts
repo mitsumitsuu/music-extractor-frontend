@@ -13,8 +13,9 @@ export type VideoInfo = {
   description?: string;
 };
 
-async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(url, { signal, headers: { "Accept-Language": "ja" } });
+// API キーは URL ではなくヘッダーで送る（URL はエラー文・ログ・キャッシュに残りやすいため）
+async function getJson<T>(url: string, signal?: AbortSignal, apiKey?: string): Promise<T> {
+  const res = await fetch(url, { signal, headers: { "Accept-Language": "ja", ...(apiKey ? { "x-goog-api-key": apiKey } : {}) } });
   if (!res.ok) {
     let msg = `${res.status}`;
     try {
@@ -40,7 +41,7 @@ export async function fetchVideos(ids: string[], key: string, signal?: AbortSign
   const out: VideoInfo[] = [];
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50);
-    const j = await getJson<VideosResp>(`${YT}/videos?part=snippet,statistics&hl=ja&id=${chunk.join(",")}&key=${encodeURIComponent(key)}`, signal);
+    const j = await getJson<VideosResp>(`${YT}/videos?part=snippet,statistics&hl=ja&id=${chunk.map(encodeURIComponent).join(",")}`, signal, key);
     for (const it of j.items ?? []) {
       out.push({
         id: it.id,
@@ -64,8 +65,9 @@ export async function fetchPlaylistIds(listId: string, key: string, maxItems = 3
   let token = "";
   while (ids.length < maxItems) {
     const j = await getJson<PlaylistResp>(
-      `${YT}/playlistItems?part=contentDetails&maxResults=50&playlistId=${encodeURIComponent(listId)}&key=${encodeURIComponent(key)}${token ? `&pageToken=${token}` : ""}`,
+      `${YT}/playlistItems?part=contentDetails&maxResults=50&playlistId=${encodeURIComponent(listId)}${token ? `&pageToken=${encodeURIComponent(token)}` : ""}`,
       signal,
+      key,
     );
     for (const it of j.items ?? []) if (it.contentDetails?.videoId) ids.push(it.contentDetails.videoId);
     if (!j.nextPageToken) break;
@@ -79,8 +81,9 @@ type SearchResp = { items?: { id?: { videoId?: string } }[] };
 /** 曲名からYouTube動画を1件検索（100クォータ消費するので件数を絞って使う） */
 export async function searchVideo(q: string, key: string, signal?: AbortSignal): Promise<string | undefined> {
   const j = await getJson<SearchResp>(
-    `${YT}/search?part=id&type=video&maxResults=1&regionCode=JP&relevanceLanguage=ja&q=${encodeURIComponent(q)}&key=${encodeURIComponent(key)}`,
+    `${YT}/search?part=id&type=video&maxResults=1&regionCode=JP&relevanceLanguage=ja&q=${encodeURIComponent(q.slice(0, 200))}`,
     signal,
+    key,
   );
   return j.items?.[0]?.id?.videoId;
 }

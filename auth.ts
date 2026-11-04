@@ -6,14 +6,28 @@ import Google from "next-auth/providers/google";
 /** 必要な環境変数がそろっている場合のみログインを有効化（未設定なら従来どおりログインなしで動く） */
 export const authEnabled = Boolean(process.env.AUTH_SECRET && process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
 
+/**
+ * 任意の許可リスト（AUTH_ALLOWED_EMAILS）。メールアドレス、または @example.ac.jp のようなドメインをカンマ/空白区切りで指定。
+ * 未設定なら「メール確認済みの Google アカウント」すべてを許可（従来どおり）。設定すると、リスト外のアカウントはログインできない。
+ */
+export function isAllowedEmail(email: string): boolean {
+  const rules = (process.env.AUTH_ALLOWED_EMAILS ?? "").split(/[,\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+  if (!rules.length) return true;
+  const e = email.toLowerCase();
+  return rules.some((r) => (r.startsWith("@") ? e.endsWith(r) : e === r));
+}
+
 export const { handlers, auth } = NextAuth({
   providers: [Google],
+  // 本番でのデバッグログ（プロフィールやトークンの出力）を確実に無効化
+  debug: false,
   session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60, updateAge: 24 * 60 * 60 },
   // Auth.js 既定のログイン/エラーページは使わずトップへ戻し、画面上でメッセージを出す
   pages: { signIn: "/", error: "/" },
   callbacks: {
     // メールアドレス確認済みの Google アカウントだけを受け付ける
-    signIn: ({ account, profile }) => account?.provider === "google" && profile?.email_verified === true && typeof profile.email === "string",
+    signIn: ({ account, profile }) =>
+      account?.provider === "google" && profile?.email_verified === true && typeof profile.email === "string" && isAllowedEmail(profile.email),
     // Cookie に入れるのは最小限（メール・表示名）。Google のアクセストークン等は保存しない
     jwt: ({ token, profile }) => {
       if (profile?.email) {
