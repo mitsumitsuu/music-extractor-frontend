@@ -1,20 +1,25 @@
 "use client";
 
-import { ArrowUpDown, CalendarPlus, Check, Copy, ExternalLink, FileImage, FileSpreadsheet, FileText, History, ListMusic, Pencil, Play, Printer, Search, Shuffle, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarPlus, Check, Copy, ExternalLink, FileImage, FileSpreadsheet, FileText, History, ListMusic, Music2, Pencil, Play, Printer, Search, SearchX, Shuffle, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { exportCSV, exportM3U8, exportPNG, exportRekordboxXML, exportXLSX, toTSV, youtubePlaylistUrls } from "@/lib/exporters";
 import { parseYouTube, songKey } from "@/lib/parse";
 import type { Setlist } from "@/lib/setlist";
 import { pickRandom } from "@/lib/stats";
 import type { ExtractResponse, Song } from "@/lib/types";
-import { Card, cx, useToast } from "./ui";
+import { CheckBox, Card, StateView, btn, cx, inputCls, useToast } from "./ui";
 import { ResultsStats } from "./ResultsStats";
 import { SetlistAddModal, type SetlistTarget } from "./SetlistAddModal";
 import { SongEditor } from "./SongEditor";
 
 type SortKey = "index" | "title" | "producer" | "vocal" | "bpm" | "views" | "comments";
 
-const PERFORMED_BADGE = "inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200";
+const PERFORMED_BADGE = "inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-900 dark:bg-amber-500/20 dark:text-amber-100";
+const CHIP = "rounded-md bg-slate-100 px-1.5 py-0.5 text-xs text-slate-800 dark:bg-slate-800 dark:text-slate-100";
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "index", label: "抽出順" }, { key: "title", label: "曲名" }, { key: "producer", label: "ボカロP" }, { key: "vocal", label: "合成音声" },
+  { key: "bpm", label: "BPM" }, { key: "views", label: "再生数" }, { key: "comments", label: "コメント数" },
+];
 const EMPTY_KEYS: Set<string> = new Set();
 
 type ResultsProps = {
@@ -65,7 +70,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
   const target = selected.size ? songs.filter((s) => selected.has(s.id)) : view;
   const targetLabel = selected.size ? `選択中の${selected.size}曲` : q || hidePerformed ? `表示中の${view.length}曲` : `全${songs.length}曲`;
 
-  const toggleSort = (key: SortKey) => setSort((s) => ({ key, desc: s.key === key ? !s.desc : key === "views" || key === "comments" }));
+  const setSortKey = (key: SortKey) => setSort({ key, desc: key === "views" || key === "comments" });
   const toggleSel = (id: string) => setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const allSelected = view.length > 0 && view.every((s) => selected.has(s.id));
   const toggleVisible = () => setSelected((prev) => {
@@ -79,14 +84,14 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
   const saveSong = (song: Song) => {
     setSongs(songs.map((current) => current.id === song.id ? song : current));
     setEditing(null);
-    toast("曲情報を保存しました（履歴・書き出しにも反映されます）");
+    toast("曲情報を保存しました");
   };
 
   const run = async (fn: () => void | Promise<void>, ok: string) => {
     try { await fn(); toast(ok); } catch { toast("書き出しに失敗しました", "err"); }
   };
   const copy = async () => {
-    try { await navigator.clipboard.writeText(toTSV(target)); toast("コピーしました（Excel・スプレッドシートにそのまま貼れます）"); } catch { toast("コピーできませんでした", "err"); }
+    try { await navigator.clipboard.writeText(toTSV(target)); toast("コピーしました"); } catch { toast("コピーできませんでした", "err"); }
   };
   const openPlaylist = () => {
     const urls = youtubePlaylistUrls(target);
@@ -98,8 +103,11 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
     }
   };
   const removeSelected = () => {
+    const before = songs;
+    const count = selected.size;
     setSongs(songs.filter((s) => !selected.has(s.id)));
     setSelected(new Set());
+    toast(`${count}曲を削除しました`, "info", { label: "元に戻す", onClick: () => setSongs(before) });
   };
   const pickN = () => {
     const n = Math.floor(Number(randomN));
@@ -107,7 +115,7 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
     if (!Number.isFinite(n) || n < 1) { toast("1以上の曲数を入力してください", "err"); return; }
     const picked = pickRandom(view, n);
     setSelected(new Set(picked.map((x) => x.id)));
-    toast(n > view.length ? `表示中の${view.length}曲すべてを選びました` : `表示中の曲からランダムに${picked.length}曲を選びました`, "info");
+    toast(n > view.length ? `表示中の${view.length}曲すべてを選びました` : `ランダムに${picked.length}曲を選びました`, "info");
   };
   const addToSetlist = (t: SetlistTarget) => {
     setAddOpen(false);
@@ -116,165 +124,176 @@ export function Results({ songs, setSongs, name, meta, warnings, dark, performed
   const fmt = (n?: number) => (n === undefined ? "-" : n.toLocaleString("ja-JP"));
 
   const exportBtns = [
-    { label: "Excel", icon: FileSpreadsheet, cls: "bg-emerald-600 hover:bg-emerald-700", on: () => run(() => exportXLSX(target, name), "Excelを書き出しました") },
-    { label: "CSV", icon: FileText, cls: "bg-sky-600 hover:bg-sky-700", on: () => run(() => exportCSV(target, name), "CSVを書き出しました") },
-    { label: "コピー", icon: Copy, cls: "bg-slate-600 hover:bg-slate-700", on: copy },
-    { label: "画像", icon: FileImage, cls: "bg-pink-600 hover:bg-pink-700", on: () => run(() => exportPNG(target, name, dark), "画像を書き出しました") },
-    { label: "PDF/印刷", icon: Printer, cls: "bg-rose-600 hover:bg-rose-700", on: () => window.print() },
-    { label: "M3U8", icon: ListMusic, cls: "bg-indigo-600 hover:bg-indigo-700", on: () => run(() => exportM3U8(target, name), "M3U8を書き出しました") },
-    { label: "rekordbox", icon: ListMusic, cls: "bg-indigo-800 hover:bg-indigo-900", on: () => run(() => exportRekordboxXML(target, name), "XMLを書き出しました") },
+    { label: "Excel", icon: FileSpreadsheet, on: () => run(() => exportXLSX(target, name), "Excelを書き出しました") },
+    { label: "CSV", icon: FileText, on: () => run(() => exportCSV(target, name), "CSVを書き出しました") },
+    { label: "コピー", icon: Copy, on: copy },
+    { label: "画像", icon: FileImage, on: () => run(() => exportPNG(target, name, dark), "画像を書き出しました") },
+    { label: "PDF/印刷", icon: Printer, on: () => window.print() },
+    { label: "M3U8", icon: ListMusic, on: () => run(() => exportM3U8(target, name), "M3U8を書き出しました") },
+    { label: "rekordbox", icon: ListMusic, on: () => run(() => exportRekordboxXML(target, name), "XMLを書き出しました") },
   ];
 
-  const th = (key: SortKey, label: string, cls = "") => (
-    <th className={cx("whitespace-nowrap px-3 py-2.5 font-bold", cls)}>
-      <button onClick={() => toggleSort(key)} className="inline-flex items-center gap-1 hover:text-indigo-600">
-        {label}
-        <ArrowUpDown className={cx("h-3.5 w-3.5", sort.key === key ? "text-indigo-600" : "opacity-40")} />
-      </button>
-    </th>
-  );
+  if (songs.length === 0) {
+    return (
+      <Card className="print-area">
+        <StateView icon={<SearchX className="h-10 w-10" />} title="曲が見つかりませんでした">
+          {warnings.length > 0 && <ul className="space-y-1 text-sm">{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>}
+        </StateView>
+      </Card>
+    );
+  }
 
   return (
     <Card className="print-area">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-indigo-700 dark:text-indigo-300">抽出結果 <span className="text-slate-500">{songs.length}曲</span></h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold">抽出結果 <span className="text-indigo-700 dark:text-indigo-300">{songs.length}曲</span></h2>
           {meta && (
-            <p className="mt-0.5 text-xs text-slate-500 print:hidden">
-              {meta.mode === "fast" ? "高速モード" : meta.mode === "ai" ? "AI抽出" : "統計モード"}
-              {meta.provider ? `・${meta.provider === "gemini" ? "Gemini" : "ChatGPT"}（${meta.model}）` : ""}・候補{meta.candidates}曲・{(meta.elapsedMs / 1000).toFixed(1)}秒
+            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400 print:hidden">
+              {meta.mode === "fast" ? "高速" : meta.mode === "ai" ? "AI抽出" : "統計"}
+              {meta.provider ? `・${meta.provider === "gemini" ? "Gemini" : "ChatGPT"}` : ""}・候補{meta.candidates}曲・{(meta.elapsedMs / 1000).toFixed(1)}秒
             </p>
           )}
         </div>
-        <button onClick={openPlaylist} className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow hover:bg-red-700 print:hidden">
-          <Play className="h-4 w-4 fill-current" /> YouTubeで連続再生
+        <button onClick={openPlaylist} className={cx(btn.base, btn.tonal, "print:hidden")}>
+          <Play className="h-4 w-4 fill-current" aria-hidden />YouTubeで連続再生
         </button>
       </div>
 
       {warnings.length > 0 && (
-        <ul className="mt-3 space-y-1 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200 print:hidden">
-          {warnings.map((w, i) => <li key={i}>・{w}</li>)}
+        <ul className="mt-3 space-y-1 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:bg-amber-500/10 dark:text-amber-100 print:hidden">
+          {warnings.map((w, i) => <li key={i} className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{w}</li>)}
         </ul>
       )}
 
       <div className="mt-4 flex flex-col gap-3 print:hidden">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden />
-          <input type="search" aria-label="結果を検索" value={q} onChange={(e) => setQ(e.target.value)} placeholder="結果を検索（曲名・P名・ボカロ）" className="min-h-11 w-full rounded-xl border border-slate-400 bg-white py-2.5 pl-9 pr-3 text-base outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-950 sm:text-sm" />
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-400" aria-hidden />
+          <input type="search" aria-label="結果を検索" value={q} onChange={(e) => setQ(e.target.value)} placeholder="曲名・P名・ボカロで検索" className={cx(inputCls, "pl-10")} />
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <label className="flex cursor-pointer items-center gap-2 font-bold text-slate-600 dark:text-slate-300">
-            <input type="checkbox" aria-label="表示中の曲をすべて選択" checked={allSelected} disabled={!view.length} onChange={toggleVisible} className="h-4 w-4 accent-indigo-600" />
-            表示中の{view.length}曲を選択
-          </label>
-          {selected.size > 0 && <button onClick={() => setSelected(new Set())} className="text-xs font-bold text-indigo-600 hover:underline dark:text-indigo-300">選択を解除</button>}
-          <span className="text-xs text-slate-500">各曲の「編集」で情報を補正できます</span>
-        </div>
-        <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
-          <span>書き出し対象: <b className="text-slate-700 dark:text-slate-200">{targetLabel}</b></span>
-          {selected.size > 0 && (
-            <button onClick={removeSelected} className="flex items-center gap-1 rounded-lg px-2 py-1 font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">
-              <Trash2 className="h-3.5 w-3.5" />選択を削除
-            </button>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+
+        <div className="flex flex-wrap items-center gap-2">
           {onAddToSetlist && (
-            <button onClick={() => setAddOpen(true)} disabled={!target.length} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-40">
-              <CalendarPlus className="h-4 w-4" />セトリに追加<span className="font-normal opacity-80">（{targetLabel}）</span>
+            <button onClick={() => setAddOpen(true)} disabled={!target.length} className={cx(btn.base, btn.filled)}>
+              <CalendarPlus className="h-4 w-4" aria-hidden />セトリに追加<span className="font-normal opacity-90">（{targetLabel}）</span>
             </button>
           )}
-          <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 py-1 pl-3 pr-1 dark:border-slate-700">
-            <Shuffle className="h-4 w-4 text-slate-500" />
-            <label htmlFor="random-n" className="text-xs font-bold text-slate-600 dark:text-slate-300">ランダムに</label>
-            <input id="random-n" type="number" inputMode="numeric" min={1} max={999} value={randomN} onChange={(e) => setRandomN(e.target.value)} onKeyDown={(e) => e.key === "Enter" && pickN()} className="w-14 rounded-lg border border-slate-300 bg-white px-2 py-1 text-base tabular-nums dark:border-slate-700 dark:bg-slate-950 sm:text-sm" />
-            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">曲</span>
-            <button onClick={pickN} disabled={!view.length} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-40 dark:bg-slate-800 dark:text-indigo-300">選ぶ</button>
-          </span>
+          <div className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 pl-3 pr-1 dark:border-slate-600">
+            <Shuffle className="h-4 w-4 text-slate-600 dark:text-slate-400" aria-hidden />
+            <label htmlFor="random-n" className="text-sm font-bold">ランダムに</label>
+            <input id="random-n" type="number" inputMode="numeric" min={1} max={999} value={randomN} onChange={(e) => setRandomN(e.target.value)} onKeyDown={(e) => e.key === "Enter" && pickN()} className="h-9 w-16 rounded-lg border pointer-coarse:h-11 border-slate-400 bg-white px-2 text-base tabular-nums dark:border-slate-600 dark:bg-slate-950 sm:text-sm" />
+            <span className="text-sm font-bold">曲</span>
+            <button onClick={pickN} disabled={!view.length} className={cx(btn.base, btn.tonal, "min-h-9 rounded-lg px-3")}>選ぶ</button>
+          </div>
         </div>
+
         {(performedKeys.size > 0 || onOpenPerformed) && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-            <label className={cx("flex items-center gap-2 font-bold", performedKeys.size ? "cursor-pointer text-slate-700 dark:text-slate-300" : "text-slate-500")}>
-              <input type="checkbox" checked={hidePerformed} disabled={!performedKeys.size} onChange={(e) => setHidePerformed(e.target.checked)} className="h-4 w-4 accent-indigo-600" />
-              演奏済みを隠す
-            </label>
-            <span className="text-xs text-slate-500">{performedKeys.size ? `演奏済み ${performedIds.size}曲${hidePerformed && performedIds.size ? "を非表示中" : "（一覧にバッジ表示）"}` : "演奏済みリストは未登録です"}</span>
-            {onOpenPerformed && <button onClick={onOpenPerformed} className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:underline dark:text-indigo-300"><History className="h-3.5 w-3.5" />演奏済みリストを編集</button>}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            {performedKeys.size > 0 && (
+              <CheckBox checked={hidePerformed} onChange={setHidePerformed} label="演奏済みの曲を隠す" text={<>演奏済みを隠す<span className="ml-1 font-normal text-slate-600 dark:text-slate-400">（{performedIds.size}曲）</span></>} />
+            )}
+            {onOpenPerformed && <button onClick={onOpenPerformed} className={cx(btn.base, btn.text, "px-3 text-indigo-700 dark:text-indigo-300")}><History className="h-4 w-4" aria-hidden />{performedKeys.size ? "演奏済みリストを編集" : "演奏済みリストを登録"}</button>}
           </div>
         )}
+
         <ResultsStats songs={view} label={`表示中の${view.length}曲`} />
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-hide">
-          {exportBtns.map((b) => (
-            <button key={b.label} onClick={b.on} className={cx("flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white shadow-sm", b.cls)}>
-              <b.icon className="h-4 w-4" /> {b.label}
-            </button>
-          ))}
+
+        <div>
+          <p className="mb-2 text-sm font-bold">書き出し<span className="ml-2 font-normal text-slate-600 dark:text-slate-400">{targetLabel}</span></p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {exportBtns.map((b) => (
+              <button key={b.label} onClick={b.on} className={cx(btn.base, btn.soft, "px-3")}>
+                <b.icon className="h-4 w-4 shrink-0" aria-hidden />{b.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* PC: テーブル */}
-      <div className="mt-4 hidden overflow-x-auto md:block print:block">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b-2 border-slate-200 text-slate-500 dark:border-slate-700">
-            <tr>
-              <th className="w-10 px-3 py-2.5 print:hidden"><input type="checkbox" aria-label="すべて選択" checked={allSelected} disabled={!view.length} onChange={toggleVisible} className="h-4 w-4 accent-indigo-600" /></th>
-              {th("index", "#", "w-12")}
-              {th("title", "曲名")}
-              {th("producer", "ボカロP")}
-              {th("vocal", "合成音声")}
-              {th("bpm", "BPM")}
-              <th className="whitespace-nowrap px-3 py-2.5 font-bold">Key</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-bold">MMD</th>
-              {th("views", "再生数", "text-right")}
-              <th className="whitespace-nowrap px-3 py-2.5 font-bold print:hidden">リンク</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-bold print:hidden">編集</th>
-            </tr>
-          </thead>
-          <tbody>
-            {view.map((s) => (
-              <tr key={s.id} className={cx("border-b border-slate-100 align-top hover:bg-indigo-50/60 dark:border-slate-800 dark:hover:bg-indigo-500/5", selected.has(s.id) && "bg-indigo-50 dark:bg-indigo-500/10")}>
-                <td className="px-3 py-2.5 print:hidden"><input type="checkbox" aria-label={`${s.title}を選択`} checked={selected.has(s.id)} onChange={() => toggleSel(s.id)} className="h-4 w-4 accent-indigo-600" /></td>
-                <td className="px-3 py-2.5 tabular-nums text-slate-500 dark:text-slate-400">{order.get(s.id)}</td>
-                <td className="min-w-[9rem] px-3 py-2.5 font-bold">{s.title}{performedIds.has(s.id) && <span className={cx(PERFORMED_BADGE, "ml-2 align-middle")}><Check className="h-3 w-3" />演奏済み</span>}</td>
-                <td className="min-w-[6rem] px-3 py-2.5 text-slate-600 dark:text-slate-300">{s.producer ?? "-"}</td>
-                <td className="min-w-[6rem] px-3 py-2.5 text-slate-600 dark:text-slate-300">{s.vocal ?? "-"}</td>
-                <td className="px-3 py-2.5 tabular-nums">{s.bpm ?? "-"}</td>
-                <td className="px-3 py-2.5">{s.key ?? "-"}</td>
-                <td className="px-3 py-2.5">{s.mmd ?? "-"}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{fmt(s.views)}</td>
-                <td className="min-w-[7rem] px-3 py-2.5 print:hidden"><LinkChips s={s} /></td>
-                <td className="px-3 py-2.5 print:hidden"><button onClick={() => setEditing(s)} aria-label={`${s.title}の曲情報を編集`} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-slate-100 px-2.5 py-2 font-bold text-indigo-700 hover:bg-indigo-100 dark:bg-slate-800 dark:text-indigo-300"><Pencil className="h-3.5 w-3.5" />編集</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* 一覧の見出し行。スクロールしてもヘッダーの下に残り、選択中は一括操作に切り替わる（高さは一定なので一覧がずれない） */}
+      <div className={cx(
+        "sticky top-[calc(max(0.625rem,env(safe-area-inset-top))_+_3.375rem_+_1px)] z-20 -mx-4 mt-4 flex min-h-14 items-center gap-1 border-y px-1 sm:-mx-6 sm:px-3 print:hidden",
+        selected.size ? "border-indigo-300 bg-indigo-50 text-indigo-950 dark:border-indigo-500/50 dark:bg-indigo-950 dark:text-indigo-50" : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900",
+      )}>
+        <CheckBox
+          checked={allSelected}
+          indeterminate={selected.size > 0 && !allSelected}
+          onChange={toggleVisible}
+          disabled={!view.length}
+          label="表示中の曲をすべて選択"
+          className="min-w-0"
+          text={<span className="truncate">{selected.size ? `${selected.size}曲を選択中` : <>すべて選択<span className="ml-1 font-normal text-slate-600 dark:text-slate-400">（{view.length}曲）</span></>}</span>}
+        />
+        <span className="sr-only" aria-live="polite">{selected.size ? `${selected.size}曲を選択中` : ""}</span>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          {selected.size ? (
+            <>
+              <button onClick={removeSelected} className={cx(btn.base, btn.dangerText, "px-3")}><Trash2 className="h-4 w-4" aria-hidden />削除</button>
+              <button onClick={() => setSelected(new Set())} aria-label="選択を解除" className={btn.icon}><X className="h-5 w-5" /></button>
+            </>
+          ) : (
+            <>
+              <label htmlFor="sort-key" className="sr-only">並べ替え</label>
+              <select id="sort-key" value={sort.key} onChange={(e) => setSortKey(e.target.value as SortKey)} className={cx(inputCls, "!w-auto py-1.5")}>
+                {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+              <button onClick={() => setSort((x) => ({ ...x, desc: !x.desc }))} aria-label={sort.desc ? "降順（押すと昇順）" : "昇順（押すと降順）"} className={btn.icon}>
+                {sort.desc ? <ArrowDown className="h-5 w-5" /> : <ArrowUp className="h-5 w-5" />}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* スマホ: カード */}
-      <ul className="mt-4 space-y-2 md:hidden print:hidden">
+      {/* 一覧（画面表示。PC もスマホも同じ並び。横スクロールなし） */}
+      <ul className="mt-3 space-y-2 print:hidden" aria-label="抽出された曲">
         {view.map((s) => (
-          <li key={s.id} className={cx("rounded-2xl border p-3", selected.has(s.id) ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-500/10" : "border-slate-200 dark:border-slate-800")}>
-            <div className="flex items-start gap-3">
-              <input type="checkbox" aria-label={`${s.title}を選択`} checked={selected.has(s.id)} onChange={() => toggleSel(s.id)} className="mt-1 h-5 w-5 shrink-0 accent-indigo-600" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 break-words font-bold leading-snug">{s.title}{performedIds.has(s.id) && <span className={cx(PERFORMED_BADGE, "ml-1.5 align-middle")}><Check className="h-3 w-3" />演奏済み</span>}</p>
-                  <button onClick={() => setEditing(s)} aria-label={`${s.title}の曲情報を編集`} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:bg-slate-800 dark:text-indigo-300"><Pencil className="h-3.5 w-3.5" />編集</button>
-                </div>
-                <p className="mt-0.5 text-sm text-slate-500">{[s.producer, s.vocal].filter(Boolean).join(" ・ ") || "-"}</p>
-                <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
-                  {s.bpm && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 dark:bg-slate-800">BPM {s.bpm}</span>}
-                  {s.key && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 dark:bg-slate-800">Key {s.key}</span>}
-                  {s.mmd === "あり" && <span className="rounded-md bg-purple-100 px-1.5 py-0.5 text-purple-800 dark:bg-purple-500/20 dark:text-purple-200">MMD</span>}
-                  {s.views !== undefined && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 dark:bg-slate-800">▶ {fmt(s.views)}</span>}
-                </div>
-                <div className="mt-2"><LinkChips s={s} /></div>
+          <li key={s.id} className={cx("flex items-start gap-1 rounded-2xl border py-1 pl-1 pr-2", selected.has(s.id) ? "border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-500/10" : "border-slate-200 dark:border-slate-700")}>
+            <CheckBox checked={selected.has(s.id)} onChange={() => toggleSel(s.id)} label={`${s.title}を選択`} />
+            <div className="min-w-0 flex-1 py-2">
+              <p className="break-words font-bold leading-snug">
+                <span className="mr-2 text-sm font-normal tabular-nums text-slate-600 dark:text-slate-400">{order.get(s.id)}</span>
+                {s.title}
+                {performedIds.has(s.id) && <span className={cx(PERFORMED_BADGE, "ml-2 align-middle")}><Check className="h-3 w-3" aria-hidden />演奏済み</span>}
+              </p>
+              {(s.producer || s.vocal) && <p className="mt-0.5 break-words text-sm text-slate-700 dark:text-slate-300">{[s.producer, s.vocal].filter(Boolean).join(" ・ ")}</p>}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {s.bpm !== undefined && <span className={CHIP}>BPM {s.bpm}</span>}
+                {s.key && <span className={CHIP}>Key {s.key}</span>}
+                {s.mmd === "あり" && <span className="rounded-md bg-purple-100 px-1.5 py-0.5 text-xs font-bold text-purple-900 dark:bg-purple-500/20 dark:text-purple-100">MMD</span>}
+                {s.views !== undefined && <span className={CHIP}>再生 {fmt(s.views)}</span>}
+                {s.comments !== undefined && <span className={CHIP}>コメント {fmt(s.comments)}</span>}
               </div>
+              <LinkChips s={s} />
             </div>
+            <button onClick={() => setEditing(s)} aria-label={`${s.title}の曲情報を編集`} className={cx(btn.base, btn.soft, "mt-1 shrink-0 px-3")}><Pencil className="h-4 w-4" aria-hidden />編集</button>
           </li>
         ))}
       </ul>
-      {view.length === 0 && <p className="py-8 text-center text-sm text-slate-500">該当する曲がありません</p>}
+      {view.length === 0 && <StateView className="mt-4 print:hidden" icon={<Music2 className="h-9 w-9" />} title="条件に合う曲がありません">
+        <button onClick={() => { setQ(""); setHidePerformed(false); }} className={cx(btn.base, btn.outlined)}>絞り込みを解除</button>
+      </StateView>}
+
+      {/* 印刷・PDF 用の表（画面には出さない） */}
+      <table className="mt-4 hidden w-full text-left text-sm print:table">
+        <thead className="border-b-2 border-slate-400">
+          <tr>{["#", "曲名", "ボカロP", "合成音声", "BPM", "Key", "MMD", "再生数"].map((h) => <th key={h} className={cx("px-2 py-2 font-bold", h === "再生数" && "text-right")}>{h}</th>)}</tr>
+        </thead>
+        <tbody>
+          {view.map((s) => (
+            <tr key={s.id} className="border-b border-slate-300">
+              <td className="px-2 py-1.5 tabular-nums">{order.get(s.id)}</td>
+              <td className="px-2 py-1.5 font-bold">{s.title}</td>
+              <td className="px-2 py-1.5">{s.producer ?? "-"}</td>
+              <td className="px-2 py-1.5">{s.vocal ?? "-"}</td>
+              <td className="px-2 py-1.5 tabular-nums">{s.bpm ?? "-"}</td>
+              <td className="px-2 py-1.5">{s.key ?? "-"}</td>
+              <td className="px-2 py-1.5">{s.mmd ?? "-"}</td>
+              <td className="px-2 py-1.5 text-right tabular-nums">{fmt(s.views)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       {onAddToSetlist && <SetlistAddModal open={addOpen} onClose={() => setAddOpen(false)} songs={target} label={targetLabel} setlists={setlists} onAdd={addToSetlist} />}
       {editing && <SongEditor key={editing.id} song={editing} onSave={saveSong} onClose={() => setEditing(null)} />}
     </Card>
@@ -289,10 +308,10 @@ function LinkChips({ s }: { s: Song }) {
     s.links.tunebat && { href: s.links.tunebat, label: "Tunebat" },
   ].filter(Boolean) as { href: string; label: string }[];
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="-ml-2 mt-1 flex flex-wrap gap-x-1 gap-y-0.5">
       {items.map((l) => (
-        <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-200">
-          {l.label}<ExternalLink className="h-3 w-3" />
+        <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm font-bold text-indigo-800 hover:bg-indigo-50 pointer-coarse:min-h-11 dark:text-indigo-200 dark:hover:bg-indigo-500/15">
+          {l.label}<ExternalLink className="h-3.5 w-3.5" aria-hidden /><span className="sr-only">（新しいタブで開く）</span>
         </a>
       ))}
     </div>

@@ -11,7 +11,7 @@ function Bars({ title, rows, unknown, distinct, tone }: { title: string; rows: C
   return (
     <div className="min-w-0">
       <h4 className="mb-2 text-xs font-bold text-slate-500 dark:text-slate-400">{title}<span className="ml-1 font-normal">（{distinct}種類{unknown ? `・未設定${unknown}曲` : ""}）</span></h4>
-      {rows.length === 0 ? <p className="text-xs text-slate-500">データがありません</p> : (
+      {rows.length === 0 ? <p className="text-xs text-slate-600 dark:text-slate-400">データがありません</p> : (
         <ul className="space-y-1.5">
           {rows.map((r) => (
             <li key={r.label} className="flex items-center gap-2 text-xs">
@@ -42,13 +42,13 @@ export function ResultsStats({ songs, label }: { songs: Song[]; label: string })
 
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 print:hidden">
-      <button onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-bold text-slate-600 dark:text-slate-300">
-        <BarChart3 className="h-4 w-4 text-indigo-500" />統計<span className="text-xs font-normal text-slate-500">（{label}）</span>
+      <button onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex min-h-11 w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left text-sm font-bold text-slate-600 dark:text-slate-300">
+        <BarChart3 className="h-4 w-4 text-indigo-600 dark:text-indigo-300" aria-hidden />統計<span className="text-xs font-normal text-slate-600 dark:text-slate-400">（{label}）</span>
         <ChevronDown className={cx("ml-auto h-4 w-4 transition", open && "rotate-180")} />
       </button>
       {stats && (
         <div className="grid gap-5 border-t border-slate-100 p-3 dark:border-slate-800 md:grid-cols-2">
-          {songs.length === 0 ? <p className="text-sm text-slate-500 md:col-span-2">対象の曲がありません</p> : (
+          {songs.length === 0 ? <p className="text-sm text-slate-600 dark:text-slate-400 md:col-span-2">対象の曲がありません</p> : (
             <>
               <Bars title="合成音声 上位8" rows={stats.vocal.rows} unknown={stats.vocal.unknown} distinct={stats.vocal.distinct} tone="bg-sky-500" />
               <Bars title="ボカロP 上位8" rows={stats.producer.rows} unknown={stats.producer.unknown} distinct={stats.producer.distinct} tone="bg-indigo-500" />
@@ -56,13 +56,13 @@ export function ResultsStats({ songs, label }: { songs: Song[]; label: string })
                 <h4 className="mb-2 text-xs font-bold text-slate-500 dark:text-slate-400">
                   BPM 分布（10 BPM ごと）<span className="ml-1 font-normal">{stats.bpm.known ? `平均 ${stats.bpm.avg}・${stats.bpm.min}〜${stats.bpm.max}` : ""}{stats.bpm.unknown ? `・不明${stats.bpm.unknown}曲` : ""}</span>
                 </h4>
-                {stats.bpm.bins.length === 0 ? <p className="text-xs text-slate-500">BPM のある曲がありません</p> : (
+                {stats.bpm.bins.length === 0 ? <p className="text-xs text-slate-600 dark:text-slate-400">BPM のある曲がありません</p> : (
                   <div className="flex items-end gap-0.5 overflow-x-auto pb-1" role="img" aria-label="BPM 分布のヒストグラム">
                     {stats.bpm.bins.map((b) => (
                       <div key={b.from} className="flex min-w-[1.5rem] flex-1 flex-col items-center gap-0.5" title={`${b.from}〜${b.to}: ${b.count}曲`}>
-                        <span className="text-[10px] tabular-nums text-slate-500">{b.count || ""}</span>
+                        <span className="text-xs tabular-nums text-slate-600 dark:text-slate-400">{b.count || ""}</span>
                         <span className={cx("w-full rounded-t", b.count ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-800")} style={{ height: `${Math.max(2, (b.count / maxBin) * 72)}px` }} />
-                        <span className="text-[10px] tabular-nums text-slate-500">{b.from}</span>
+                        <span className="text-xs tabular-nums text-slate-600 dark:text-slate-400">{b.from}</span>
                       </div>
                     ))}
                   </div>
@@ -74,7 +74,7 @@ export function ResultsStats({ songs, label }: { songs: Song[]; label: string })
                   <span className="bg-purple-500" style={{ width: `${(stats.mmd.yes / stats.mmd.total) * 100}%` }} />
                   <span className="bg-slate-400 dark:bg-slate-600" style={{ width: `${(stats.mmd.no / stats.mmd.total) * 100}%` }} />
                 </div>
-                <p className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
+                <p className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-slate-600 dark:text-slate-400">
                   <span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-purple-500" />あり {stats.mmd.yes}</span>
                   <span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-600" />なし {stats.mmd.no}</span>
                   <span>不明 {stats.mmd.unknown}</span>

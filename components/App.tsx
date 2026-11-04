@@ -1,6 +1,7 @@
 "use client";
 
-import { ClipboardList, Copy, History, ListMusic, Loader2, LogIn, Moon, Music2, Pencil, Play, RefreshCw, Settings, Share2, Sparkles, Sun, X } from "lucide-react";
+import { MotionConfig } from "framer-motion";
+import { AlertCircle, ClipboardList, Copy, History, ListMusic, Loader2, LogIn, Moon, Music2, Pencil, Play, RefreshCw, Settings, Share2, Sparkles, Sun, Trash2, X } from "lucide-react";
 import { signIn, signOut } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { exportJSON } from "@/lib/exporters";
@@ -17,7 +18,7 @@ import { Results } from "./Results";
 import { SettingsModal, type SettingsTab } from "./SettingsModal";
 import type { SetlistTarget } from "./SetlistAddModal";
 import { SetlistView } from "./SetlistView";
-import { Confirm, ToastProvider, btn, cx, useToast } from "./ui";
+import { Confirm, StateView, ToastProvider, btn, cx, useToast } from "./ui";
 
 const MAX_PRESETS = 10;
 const MAX_SETLISTS = 50;
@@ -25,6 +26,15 @@ type View = "extract" | "setlist" | "playlist" | "history";
 const NAV_ITEMS = [["extract", "抽出", Sparkles], ["setlist", "セトリ", ClipboardList], ["playlist", "プレイリスト", ListMusic], ["history", "履歴", History]] as const;
 
 type ResultState = { historyId: string; songs: Song[]; warnings: string[]; meta?: ExtractResponse["meta"]; name: string };
+
+/** 「視差効果を減らす」設定ならスクロールのアニメーションもしない */
+const scrollBehavior = (): ScrollBehavior => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+
+/** 削除した履歴を戻す。削除後に増えた履歴は消さずに、消したものだけを足す */
+const restoreHistory = (before: HistoryEntry[]) => (current: HistoryEntry[]) => {
+  const ids = new Set(current.map((h) => h.id));
+  return [...current, ...before.filter((h) => !ids.has(h.id))].sort((a, b) => b.at - a.at).slice(0, 20);
+};
 
 const omit = <T,>(rec: Record<string, T>, key: string): Record<string, T> => {
   const next = { ...rec };
@@ -102,9 +112,11 @@ function usePersist<T>(value: T, save: (v: T) => void, delay = 400) {
 
 export default function App() {
   return (
-    <ToastProvider>
-      <AppInner />
-    </ToastProvider>
+    <MotionConfig reducedMotion="user">
+      <ToastProvider>
+        <AppInner />
+      </ToastProvider>
+    </MotionConfig>
   );
 }
 
@@ -138,6 +150,7 @@ function AppInner() {
   const [finePointer] = useState(() => window.matchMedia("(pointer: fine)").matches);
   const abortRef = useRef<AbortController | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(activeId);
 
   const active = presets.find((p) => p.id === activeId) ?? presets[0];
@@ -148,6 +161,8 @@ function AppInner() {
   const dark = prefs.theme === "dark" || (prefs.theme === "system" && systemDark);
   const auth = health?.auth;
   const needLogin = !!auth?.required && !auth.user;
+
+  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() }); }, [error]);
 
   /* ---- 永続化・副作用 ---- */
   usePersist(presets, store.savePresets);
@@ -327,7 +342,7 @@ function AppInner() {
         setHistory((h) => [{ id: historyId, at: Date.now(), presetName: p.name, count: songs.length, songs }, ...h].slice(0, 20));
         toast(here ? `${songs.length}曲を抽出しました` : `「${p.name}」で${songs.length}曲を抽出しました`);
       } else toast("曲が見つかりませんでした", "info");
-      if (here) setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      if (here) setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }), 100);
     } catch (e) {
       if ((e as Error).name === "AbortError") setErr(p.id, "抽出を中止しました。");
       else setErr(p.id, (e as Error).message || "通信エラーが発生しました。");
@@ -405,13 +420,13 @@ function AppInner() {
       <LogIn className="h-5 w-5" />ログインして抽出
     </button>
   ) : loading ? (
-    <button onClick={() => abortRef.current?.abort()} className={cx(btn.base, "min-h-14 w-full rounded-2xl bg-rose-600 text-lg text-white hover:bg-rose-700")}>
-      <Loader2 className="h-5 w-5 animate-spin" />{busyHere ? "抽出中" : `「${busyName}」で抽出中`}… {elapsed}秒（タップで中止）
+    <button onClick={() => abortRef.current?.abort()} aria-label="抽出を中止" className={cx(btn.base, "min-h-14 w-full rounded-2xl bg-rose-700 text-lg text-white hover:bg-rose-800")}>
+      <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" aria-hidden /><span className="truncate">{busyHere ? "抽出中" : `「${busyName}」で抽出中`} {elapsed}秒</span><span className="shrink-0 rounded-lg bg-white/20 px-2 py-0.5 text-sm">中止</span>
     </button>
   ) : (
-    <button onClick={start} aria-disabled={!canStart} className={cx(btn.base, "min-h-14 w-full rounded-2xl text-lg text-white", canStart ? "bg-indigo-600 shadow-md hover:bg-indigo-700" : "bg-slate-500 dark:bg-slate-700")}>
+    <button onClick={start} aria-disabled={!canStart} className={cx(btn.base, "min-h-14 w-full rounded-2xl text-lg text-white", canStart ? "bg-indigo-600 shadow-md hover:bg-indigo-700" : "bg-slate-600 dark:bg-slate-700")}>
       {active.mode === "ai" ? <Sparkles className="h-5 w-5" /> : <Play className="h-5 w-5 fill-current" />}抽出スタート
-      <kbd className="ml-2 hidden rounded bg-white/20 px-1.5 py-0.5 text-[11px] font-normal lg:inline">Ctrl+Enter</kbd>
+      <kbd className="ml-2 hidden rounded bg-white/20 px-1.5 py-0.5 text-xs font-normal lg:inline">Ctrl+Enter</kbd>
     </button>
   );
 
@@ -420,12 +435,14 @@ function AppInner() {
     { label: "複製", icon: Copy },
     { label: "共有", icon: Share2 },
     { label: "初期化", icon: RefreshCw },
+    { label: "閉じる", icon: X },
   ];
   const runTabAction = (label: string) => {
     if (label === "名前変更") setRenaming(active.id);
     else if (label === "複製") duplicate();
     else if (label === "共有") void share();
     else if (label === "初期化") requestReset();
+    else if (label === "閉じる") requestClose(active.id);
   };
   const initial = auth?.user ? Array.from(auth.user.name || auth.user.email)[0]?.toUpperCase() : "";
 
@@ -450,28 +467,28 @@ function AppInner() {
             </button>
             <button onClick={() => openSettings("keys")} className="relative flex min-h-11 items-center gap-1.5 rounded-full px-3 text-slate-700 hover:bg-slate-200/70 dark:text-slate-200 dark:hover:bg-slate-800" aria-label="設定">
               <Settings className="h-5 w-5" /><span className="hidden text-sm font-bold sm:inline">設定</span>
-              {!health?.gemini && !health?.openai && !keys.gemini && !keys.openai && <span className="absolute right-1.5 top-2 h-2 w-2 rounded-full bg-amber-500 sm:static" title="AIキー未設定" />}
+              {!health?.gemini && !health?.openai && !keys.gemini && !keys.openai && <><span className="absolute right-1.5 top-2 h-2 w-2 rounded-full bg-amber-500 sm:static" aria-hidden /><span className="sr-only">（AIキー未設定）</span></>}
             </button>
             {auth?.enabled && (auth.user ? (
               <button onClick={() => openSettings("general")} className="grid h-11 w-11 place-items-center rounded-full hover:bg-slate-200/70 dark:hover:bg-slate-800" aria-label={`アカウント（${auth.user.email}）`} title={auth.user.email}>
                 <span className="grid h-8 w-8 place-items-center rounded-full bg-indigo-600 text-sm font-bold text-white">{initial}</span>
               </button>
             ) : (
-              <button onClick={login} className={cx(btn.base, btn.filled, "ml-1 min-h-10 px-3")}>
-                <LogIn className="h-4 w-4" />ログイン
+              <button onClick={login} className={cx(btn.base, btn.filled, "ml-1 px-3")}>
+                <LogIn className="h-4 w-4" aria-hidden />ログイン
               </button>
             ))}
           </div>
         </div>
       </header>
 
-      <main id="main" className="mx-auto max-w-7xl px-3 pb-44 pt-3 sm:px-6 md:pb-16">
+      <main id="main" className="mx-auto max-w-7xl px-3 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 md:pb-16">
         {view === "extract" && (
           <>
             {needLogin && (
               <div className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-50 print:hidden">
                 <LogIn className="h-5 w-5 shrink-0" aria-hidden />
-                <p className="min-w-0 flex-1">抽出するには Google アカウントでログインしてください。入力内容はこの端末に保存されたままです。</p>
+                <p className="min-w-0 flex-1 font-bold">抽出するにはログインが必要です</p>
                 <button onClick={login} className={cx(btn.base, btn.filled)}>Googleでログイン</button>
               </div>
             )}
@@ -499,30 +516,40 @@ function AppInner() {
               aria-labelledby={presetTabId(active.id)}
               className={cx("relative rounded-3xl bg-[var(--surface)] p-3 shadow-sm sm:p-5 print:bg-transparent print:p-0 print:shadow-none", activeIndex === 0 && "rounded-tl-none")}
             >
-              <div className="-mx-1 mb-3 flex items-center gap-0.5 overflow-x-auto px-1 text-sm scrollbar-hide print:hidden" role="toolbar" aria-label="このタブの操作">
+              <div className="mb-3 grid grid-cols-5 gap-1 text-sm sm:flex sm:gap-0.5 print:hidden" role="toolbar" aria-label="このタブの操作">
                 {tabActions.map((a) => (
-                  <button key={a.label} onClick={() => runTabAction(a.label)} className={cx(btn.base, btn.text, "min-h-10 shrink-0 px-2 sm:px-3")}>
-                    <a.icon className="h-4 w-4" />{a.label}
+                  <button key={a.label} onClick={() => runTabAction(a.label)} className={cx(btn.base, btn.text, "min-w-0 flex-col gap-0.5 !px-1 py-1 text-xs whitespace-nowrap sm:flex-row sm:gap-1.5 sm:!px-3 sm:text-sm")}>
+                    <a.icon className="h-4 w-4 shrink-0" aria-hidden />{a.label}
                   </button>
                 ))}
-                <span className="ml-auto hidden text-xs text-slate-600 dark:text-slate-400 lg:inline">自動保存・ダブルクリックで名前変更・ドラッグで並べ替え・ホイールクリックで閉じる</span>
               </div>
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
                 <div className="min-w-0 lg:col-span-5 print:hidden">
-                  <ExtractForm preset={active} update={update} files={files} setFiles={(f) => setFilesBy((x) => ({ ...x, [active.id]: f }))} health={health} hasUserKey={hasUserKey} appendSpeech={(text) => appendSpeech(active.id, text)} onSpeechActiveChange={onSpeechActiveChange} busy={loading} />
-                  {error && <p role="alert" className="mt-4 rounded-2xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">{error}</p>}
+                  {error && (
+                    <div ref={errorRef} role="alert" className="mb-4 flex items-start gap-2.5 rounded-2xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-900 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-50">
+                      <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+                      <p className="min-w-0 flex-1">{error}</p>
+                      <button onClick={() => setErr(active.id, "")} aria-label="エラー表示を閉じる" className="-my-1.5 -mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-500/20"><X className="h-4 w-4" /></button>
+                    </div>
+                  )}
+                  <ExtractForm preset={active} update={update} files={files} setFiles={(f) => setFilesBy((x) => ({ ...x, [active.id]: f }))} health={health} hasUserKey={hasUserKey} appendSpeech={(text) => appendSpeech(active.id, text)} onSpeechActiveChange={onSpeechActiveChange} onOpenSettings={() => openSettings("keys")} busy={loading} />
                   <div className="mt-4 hidden md:block">{startButton}</div>
                 </div>
-                <div ref={resultsRef} className="min-w-0 scroll-mt-20 lg:col-span-7">
-                  {result ? (
+                <div ref={resultsRef} className="min-w-0 lg:col-span-7" aria-busy={busyHere}>
+                  {busyHere && !result ? (
+                    <div role="status" aria-label="抽出中" className="space-y-3 rounded-3xl border border-slate-200 p-4 dark:border-slate-700 sm:p-6">
+                      {[0, 1, 2, 3].map((i) => (
+                        <div key={i} className="flex animate-pulse gap-3 motion-reduce:animate-none" aria-hidden>
+                          <div className="h-11 w-11 shrink-0 rounded-full bg-slate-200 dark:bg-slate-800" />
+                          <div className="flex-1 space-y-2 py-1"><div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-slate-800" /><div className="h-3 w-1/3 rounded bg-slate-200 dark:bg-slate-800" /></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : result ? (
                     <Results key={result.historyId} songs={result.songs} setSongs={updateResultSongs} name={result.name} meta={result.meta} warnings={result.warnings} dark={dark} performedKeys={performedKeys} onOpenPerformed={() => setPerformedOpen(true)} setlists={setlists} onAddToSetlist={addToSetlist} />
                   ) : (
-                    <div className="hidden rounded-3xl border-2 border-dashed border-slate-300 p-10 text-center text-slate-600 dark:border-slate-700 dark:text-slate-400 lg:block">
-                      {busyHere ? <Loader2 className="mx-auto mb-3 h-10 w-10 animate-spin text-indigo-500" /> : <Music2 className="mx-auto mb-3 h-10 w-10 text-indigo-500" />}
-                      <p className="font-bold">{busyHere ? "抽出しています…" : "ここに抽出結果が表示されます"}</p>
-                      <p className="mt-1 text-sm">タブごとに入力と結果を別々に保持します。左でURLやテキストを入力して「抽出スタート」</p>
-                    </div>
+                    <StateView className="hidden lg:flex" icon={<Music2 className="h-10 w-10" />} title="抽出結果がここに表示されます" />
                   )}
                 </div>
               </div>
@@ -539,18 +566,18 @@ function AppInner() {
         {view === "history" && (
           <div className="mx-auto max-w-3xl space-y-2">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold">抽出履歴（最新20件・この端末のみ）</h2>
-              {history.length > 0 && <button onClick={() => setHistory([])} className={cx(btn.base, btn.text, "text-rose-700 dark:text-rose-300")}>すべて削除</button>}
+              <h2 className="text-lg font-bold">抽出履歴</h2>
+              {history.length > 0 && <button onClick={() => { const before = history; setHistory([]); toast("履歴をすべて削除しました", "info", { label: "元に戻す", onClick: () => setHistory(restoreHistory(before)) }); }} className={cx(btn.base, btn.text, btn.dangerText)}><Trash2 className="h-4 w-4" aria-hidden />すべて削除</button>}
             </div>
-            {history.length === 0 && <p className="rounded-2xl bg-white p-8 text-center text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-400">まだ履歴はありません</p>}
+            {history.length === 0 && <StateView icon={<History className="h-10 w-10" />} title="履歴はまだありません" />}
             {history.map((h) => (
-              <div key={h.id} className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
+              <div key={h.id} className="flex items-center gap-2 rounded-2xl bg-white py-2 pl-4 pr-2 shadow-sm dark:bg-slate-900">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold">{h.presetName}<span className="ml-2 text-sm font-normal text-slate-600 dark:text-slate-400">{h.count}曲</span></p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">{new Date(h.at).toLocaleString("ja-JP")}</p>
+                  <p className="truncate font-bold">{h.presetName}<span className="ml-2 text-sm font-normal text-slate-700 dark:text-slate-300">{h.count}曲</span></p>
+                  <p className="text-xs text-slate-700 dark:text-slate-300">{new Date(h.at).toLocaleString("ja-JP")}</p>
                 </div>
-                <button onClick={() => { setResults((r) => ({ ...r, [active.id]: { historyId: h.id, songs: h.songs, warnings: [], name: h.presetName } })); setView("extract"); toast(`「${active.name}」タブで開きました`, "info"); }} className={cx(btn.base, btn.filled, "min-h-10")}>開く</button>
-                <button onClick={() => setHistory((x) => x.filter((y) => y.id !== h.id))} className={btn.icon} aria-label={`${h.presetName}の履歴を削除`}><X className="h-4 w-4" /></button>
+                <button onClick={() => { setResults((r) => ({ ...r, [active.id]: { historyId: h.id, songs: h.songs, warnings: [], name: h.presetName } })); setView("extract"); toast(`「${active.name}」タブで開きました`, "info"); }} className={cx(btn.base, btn.tonal)}>開く</button>
+                <button onClick={() => { const before = history; setHistory((x) => x.filter((y) => y.id !== h.id)); toast("履歴を削除しました", "info", { label: "元に戻す", onClick: () => setHistory(restoreHistory(before)) }); }} className={btn.icon} aria-label={`${h.presetName}（${h.count}曲）の履歴を削除`}><X className="h-5 w-5" /></button>
               </div>
             ))}
           </div>
@@ -562,7 +589,7 @@ function AppInner() {
         {view === "extract" && <div className="mb-2">{startButton}</div>}
         <nav className="grid grid-cols-4 gap-1" aria-label="メイン">
           {NAV_ITEMS.map(([v, label, Icon]) => (
-            <button key={v} onClick={() => changeView(v)} aria-current={view === v ? "page" : undefined} className={cx("flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-bold", view === v ? "text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-400")}>
+            <button key={v} onClick={() => changeView(v)} aria-current={view === v ? "page" : undefined} className={cx("flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-xs font-bold", view === v ? "text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-400")}>
               <span className={cx("grid h-7 w-14 place-items-center rounded-full transition", view === v && "bg-indigo-100 dark:bg-indigo-500/20")}><Icon className="h-5 w-5" /></span>{label}
             </button>
           ))}

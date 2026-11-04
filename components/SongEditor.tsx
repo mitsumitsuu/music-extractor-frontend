@@ -36,7 +36,6 @@ export function SongEditor({ song, onSave, onClose }: { song: Song; onSave: (son
           event.currentTarget.requestSubmit();
         }
       }}>
-        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">抽出した情報を修正できます。保存すると書き出し・再生に反映され、この端末の抽出履歴にも自動保存されます。</p>
         <div className="space-y-4">
           <Field label="曲名（必須）">
             {(id) => <input id={id} className={inputCls} value={draft.title} onChange={(event) => update("title", event.target.value)} required />}
@@ -48,10 +47,10 @@ export function SongEditor({ song, onSave, onClose }: { song: Song; onSave: (son
             <Field label="合成音声・歌唱者">
               {(id) => <input id={id} className={inputCls} value={draft.vocal} onChange={(event) => update("vocal", event.target.value)} placeholder="例: 初音ミク" />}
             </Field>
-            <Field label="BPM" hint="不明なら空欄。小数も入力できます。">
+            <Field label="BPM">
               {(id) => <input id={id} type="text" inputMode="decimal" className={inputCls} value={draft.bpm} onChange={(event) => update("bpm", event.target.value)} placeholder="例: 175.5" />}
             </Field>
-            <Field label="Key" hint="音名・Camelot表記のどちらも使えます。">
+            <Field label="Key">
               {(id) => <input id={id} className={inputCls} value={draft.key} onChange={(event) => update("key", event.target.value)} placeholder="例: Am / 8A" />}
             </Field>
             <Field label="MMD">
@@ -63,14 +62,14 @@ export function SongEditor({ song, onSave, onClose }: { song: Song; onSave: (son
               </select>}
             </Field>
           </div>
-          <Field label="楽曲・動画URL" hint="空欄ならYouTube検索リンクを作ります。別の動画に変更すると、再生数・コメント数・公開日の情報は未取得になります。">
+          <Field label="楽曲・動画URL">
             {(id) => <input id={id} type="url" inputMode="url" autoCapitalize="none" autoCorrect="off" className={inputCls} value={draft.url} onChange={(event) => update("url", event.target.value)} placeholder="https://www.youtube.com/watch?v=..." />}
           </Field>
         </div>
-        {error && <p role="alert" className="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-200">{error}</p>}
+        {error && <p role="alert" className="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-500/10 dark:text-rose-100">{error}</p>}
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 py-3 font-bold hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">キャンセル</button>
-          <button type="submit" className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 font-bold text-white hover:bg-indigo-700"><Save className="h-4 w-4" />保存</button>
+          <button type="button" onClick={onClose} className="min-h-12 rounded-xl bg-slate-100 py-3 font-bold hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">キャンセル</button>
+          <button type="submit" className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 font-bold text-white hover:bg-indigo-700"><Save className="h-4 w-4" />保存</button>
         </div>
       </form>
     </Modal>
