@@ -72,7 +72,14 @@ export async function POST(req: Request) {
     out.append(`attachment_${n}`, v, oneLine(v.name, 100) || `file_${n}`);
   }
   try {
-    const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(to)}`, { method: "POST", body: out, headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+    // FormSubmit は送信元ページ（Referer）でフォームを識別するため、サーバーからの送信でもこのサイトの URL を付ける
+    const site = new URL(req.url).origin;
+    const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(to)}`, {
+      method: "POST",
+      body: out,
+      headers: { Accept: "application/json", Referer: `${site}/`, Origin: site },
+      signal: AbortSignal.timeout(15_000),
+    });
     // FormSubmit は未有効化などの失敗でも 200 と { success: "false" } を返すため、本文まで確認する
     const j = (await res.json().catch(() => null)) as { success?: unknown } | null;
     if (!res.ok || !(j?.success === true || j?.success === "true")) return fail("送信に失敗しました。時間をおいて再度お試しください。", 502);

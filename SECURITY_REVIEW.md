@@ -37,7 +37,7 @@
 ## 残リスク・対応状況
 | # | 内容 | 状態 |
 |---|---|---|
-| 1 | レート制限がサーバーレス1インスタンス内のメモリのみ（インスタンス間で共有されない） | アプリ側の制限は維持。全体の制限は Vercel Firewall のルールで行う（Vercel のアクセス許可後に設定） |
+| 1 | レート制限がサーバーレス1インスタンス内のメモリのみ（インスタンス間で共有されない） | アプリ側の制限は維持。Vercel Firewall のルールは API から作成できなかった（ファイアウォール設定が未初期化で 404）。ダッシュボードで追加する手順を下に記載（Hobby プランのため料金は発生しない） |
 | 2 | `npm audit` の moderate 16 件（`eslint` 系の `minimatch`） | **対応不要と判断**。本番依存は 0 件（`npm audit --omit=dev`）。lint 実行時だけ使う開発ツールで、パターンは自分の設定ファイルのみ＝攻撃者の入力が届かない。`overrides` で 11 系に上げると `eslint-plugin-import` が壊れる（既定エクスポートがない）ことを確認。CI で本番依存を監視 |
 | 3 | `style-src-attr 'unsafe-inline'` | **解消**（不要と確認して削除） |
 | 4 | お問い合わせ宛先の直書き | **解消**（ソースから削除。過去のコミット履歴には残るが、公開リポジトリの履歴改変は破壊的なため行わない）。**Vercel に `CONTACT_EMAIL` の設定と FormSubmit の有効化が必要**（下記） |
@@ -45,9 +45,25 @@
 | 6 | `next-auth` 5.0.0-beta.32 | 現時点で v5 の最新（正式版は未公開）。正式版が出たら更新 |
 | 7 | 抽出のファイル上限が Vercel の受信上限を超える | **解消**（3MB に変更＋送信前チェック） |
 | 8 | `style-src-attr` の iOS 15.4 未満非対応 | **解消**（#3 の削除で無関係に） |
-| 9 | Vercel 上での動作確認 | Vercel のアクセス許可後に確認 |
+| 9 | Vercel 上での動作確認 | **解消**。プレビューで CSP（インライン許可なし）・`microphone=(self)` はトップのみ・自前 404（404 応答）・API ヘッダーを確認。直近 1 時間のエラーログ 0 件 |
 | 10 | `xlsx` を含む `npm ci` | **解消**（GitHub Actions で `npm ci`・lint・build 成功を確認） |
 
 ### お問い合わせを動かすために必要なこと
 - Gmail に FormSubmit の「Activate Form」メール（2026-08-09、未開封）があり、**まだ有効化されていない**。有効化しないと管理者にメールが届かない（修正前は届かなくても「送信しました」と表示されていた）。
 - Vercel の環境変数 `CONTACT_EMAIL` に宛先を設定し、初回送信で届く有効化メールの「Activate Form」を押す。有効化後に届くランダム文字列を `CONTACT_EMAIL` に入れればアドレスも隠せる。
+
+## 本番環境（Vercel）の設定状況（2026-11-04 確認）
+- **環境変数が 1 つも設定されていなかった** → 本番は **Google ログインが無効**（`/api/health` で `auth.enabled: false`）で、誰でもログインなしで使える状態。サーバーの API キーも未設定のため、キーが使われる被害はないが、外部ページ取得などは誰でも実行できる。
+- 対応済み: `CONTACT_EMAIL` を本番・プレビューに設定（暗号化）。次のデプロイから反映。
+- 対応済み: お問い合わせのサーバー送信に、このサイトの URL を Referer/Origin として付与（FormSubmit が送信元ページでフォームを識別するため。作業環境から formsubmit.co に接続できず実送信は未確認）。
+- プレビュー URL は Vercel Authentication（Standard Protection）で保護済み。
+
+### ログインを有効にする手順（Google アカウントでの操作が必要）
+1. Google Cloud Console → 「API とサービス」→「認証情報」→「OAuth クライアント ID を作成」→ 種類「ウェブ アプリケーション」。
+   承認済みのリダイレクト URI: `https://music-extractor-frontend.vercel.app/api/auth/callback/google`
+2. Vercel → Project → Settings → Environment Variables（Production）に追加:
+   `AUTH_GOOGLE_ID`・`AUTH_GOOGLE_SECRET`（1 の値）、`AUTH_SECRET`（32 バイト以上の乱数）。任意で `AUTH_ALLOWED_EMAILS`（ログインできる人を限定）、`SERVER_KEY_EMAILS`。
+3. 再デプロイ（main への次のマージでも可）。`/api/health` が `auth.enabled: true` になれば完了。
+
+### レート制限ルール（任意・ダッシュボードで追加）
+Vercel → Project → Firewall → 「Add New Rule」: 条件「Request Path が正規表現 `^/api/(extract|contact)$` に一致」かつ「Method = POST」、動作「Rate Limit」、Fixed Window 60 秒・20 リクエスト・キー IP、超過時 429。
