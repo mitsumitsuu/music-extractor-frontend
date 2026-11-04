@@ -1,5 +1,6 @@
 import { extractWithAi } from "@/lib/server/ai";
 import { canUseServerKeys, guard } from "@/lib/server/guard";
+import { publicError, readJsonLimited } from "@/lib/server/http";
 import { fetchPageText, fetchPlaylistIds, fetchPlaylistIdsKeyless, fetchVideos, oembed, searchVideo, searchVideoKeyless, type VideoInfo } from "@/lib/server/youtube";
 import { applyFilters, buildLinks, dedupe, parseDescription, parseTextBlock, parseTitleLine, parseYouTube, songKey } from "@/lib/parse";
 import { sanitizeExtractRequest } from "@/lib/sanitize";
@@ -14,8 +15,29 @@ const MAX_TEXT = 300_000;
 const MAX_FILE_BYTES = 4_000_000;
 const MAX_SEARCH = 20;
 const MAX_KEYLESS_SEARCH = 40;
+const MAX_BODY_BYTES = 6_500_000;
+const PAGE_CONCURRENCY = 5;
 
 type Candidate = Omit<Song, "id" | "links">;
+
+/** 同時実行数を絞って順に処理（巨大な URL リストで一斉にサーバーから外部へ接続しないため） */
+async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) await fn(items[next++]);
+    }),
+  );
+}
+
+const isSoundCloud = (url: string) => {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return h === "soundcloud.com" || h.endsWith(".soundcloud.com");
+  } catch {
+    return false;
+  }
+};
 
 const bad = (msg: string, status = 400) => Response.json({ error: msg }, { status, headers: { "Cache-Control": "no-store" } });
 
@@ -24,12 +46,10 @@ export async function POST(req: Request) {
   if (access.error) return access.error;
   const started = Date.now();
 
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return bad("リクエストの形式が正しくありません。");
-  }
+  // 本文は上限つきで読む（文字列・ファイルの上限は sanitize 後にも再確認）
+  const parsed = await readJsonLimited(req, MAX_BODY_BYTES);
+  if (!parsed.ok) return parsed.reason === "too_large" ? bad("送信データが大きすぎます（合計6MBまで）。", 413) : bad("リクエストの形式が正しくありません。");
+  const raw = parsed.value;
   const body = sanitizeExtractRequest(raw, { maxUrls: MAX_URLS, maxText: MAX_TEXT, maxFiles: 10 });
   const { urls, text, files, mode, filters } = body;
   const totalFileBytes = files.reduce((n, f) => n + (f.data ? (f.data.length * 3) / 4 : (f.text ?? "").length), 0);
@@ -43,6 +63,7 @@ export async function POST(req: Request) {
     gemini: body.keys?.gemini || (server ? process.env.GEMINI_API_KEY : undefined),
     openai: body.keys?.openai || (server ? process.env.OPENAI_API_KEY : undefined),
   };
+  const err = (e: unknown) => publicError(e, [keys.youtube, keys.gemini, keys.openai]);
   const hasAi = !!(keys.gemini || keys.openai);
   if (mode === "ai" && !hasAi) return bad("AI抽出モードには Gemini または OpenAI のAPIキーが必要です（設定 → APIキー）。");
   if (mode === "stats" && !keys.youtube) return bad("統計モードには YouTube Data API キーが必要です（設定 → APIキー）。");
@@ -54,52 +75,50 @@ export async function POST(req: Request) {
   const videoIds: string[] = [];
 
   // 1. URL の解析
-  await Promise.all(
-    urls.map(async (url) => {
-      const yt = parseYouTube(url);
-      if (yt.listId) {
-        if (keys.youtube) {
-          try {
-            videoIds.push(...(await fetchPlaylistIds(yt.listId, keys.youtube, 300, signal)));
-            return;
-          } catch (e) {
-            warnings.push(`プレイリスト取得に失敗: ${(e as Error).message}`);
-          }
-        }
-        const ids = await fetchPlaylistIdsKeyless(yt.listId, signal);
-        if (ids.length) {
-          videoIds.push(...ids);
-          if (!keys.youtube && ids.length >= 100) warnings.push("APIキーなしのため、プレイリストは先頭約100曲のみ取得しました。");
+  await mapLimit(urls, PAGE_CONCURRENCY, async (url) => {
+    const yt = parseYouTube(url);
+    if (yt.listId) {
+      if (keys.youtube) {
+        try {
+          videoIds.push(...(await fetchPlaylistIds(yt.listId, keys.youtube, 300, signal)));
           return;
+        } catch (e) {
+          warnings.push(`プレイリスト取得に失敗: ${err(e)}`);
         }
-        warnings.push("プレイリストを取得できませんでした（非公開の可能性）。YouTube APIキーを設定すると安定します。");
       }
-      if (yt.videoId) {
-        videoIds.push(yt.videoId);
+      const ids = await fetchPlaylistIdsKeyless(yt.listId, signal);
+      if (ids.length) {
+        videoIds.push(...ids);
+        if (!keys.youtube && ids.length >= 100) warnings.push("APIキーなしのため、プレイリストは先頭約100曲のみ取得しました。");
         return;
       }
-      if (/soundcloud\.com/i.test(url)) {
-        const o = await oembed(url, signal);
-        if (o) {
-          const p = parseTitleLine(o.title, o.author);
-          if (p) candidates.push({ ...p, url, source: "SoundCloud" });
-          material.push(`SoundCloud: ${o.title} / ${o.author} / ${url}`);
-        } else warnings.push(`SoundCloud の情報を取得できませんでした: ${url}`);
-        return;
-      }
-      const page = await fetchPageText(url, signal);
-      if (!page) {
-        warnings.push(`ページを読み込めませんでした: ${url}`);
-        return;
-      }
-      material.push(`# Webページ: ${page.title} (${url})\n${page.text}`);
-      if (mode !== "ai") {
-        const lines = page.text.split("\n").filter((l) => /[\/／]|feat\.?|ft\./i.test(l) && l.length < 140);
-        for (const s of parseTextBlock(lines.join("\n"))) candidates.push({ ...s, source: page.title || url });
-        if (hasAi) warnings.push("Webページは高速モードだと精度が低めです。「AI抽出」モードがおすすめです。");
-      }
-    }),
-  );
+      warnings.push("プレイリストを取得できませんでした（非公開の可能性）。YouTube APIキーを設定すると安定します。");
+    }
+    if (yt.videoId) {
+      videoIds.push(yt.videoId);
+      return;
+    }
+    if (isSoundCloud(url)) {
+      const o = await oembed(url, signal);
+      if (o) {
+        const p = parseTitleLine(o.title, o.author);
+        if (p) candidates.push({ ...p, url, source: "SoundCloud" });
+        material.push(`SoundCloud: ${o.title} / ${o.author} / ${url}`);
+      } else warnings.push(`SoundCloud の情報を取得できませんでした: ${url}`);
+      return;
+    }
+    const page = await fetchPageText(url, signal);
+    if (!page) {
+      warnings.push(`ページを読み込めませんでした: ${url}`);
+      return;
+    }
+    material.push(`# Webページ: ${page.title} (${url})\n${page.text}`);
+    if (mode !== "ai") {
+      const lines = page.text.split("\n").filter((l) => /[\/／]|feat\.?|ft\./i.test(l) && l.length < 140);
+      for (const s of parseTextBlock(lines.join("\n"))) candidates.push({ ...s, source: page.title || url });
+      if (hasAi) warnings.push("Webページは高速モードだと精度が低めです。「AI抽出」モードがおすすめです。");
+    }
+  });
 
   // 2. YouTube 動画情報
   const uniqIds = [...new Set(videoIds)].slice(0, 500);
@@ -109,7 +128,7 @@ export async function POST(req: Request) {
       try {
         infos = await fetchVideos(uniqIds, keys.youtube, signal);
       } catch (e) {
-        warnings.push(`YouTube API エラー: ${(e as Error).message}（キーなしの簡易取得に切り替えます）`);
+        warnings.push(`YouTube API エラー: ${err(e)}（キーなしの簡易取得に切り替えます）`);
       }
     }
     if (!infos.length) {
@@ -187,8 +206,8 @@ export async function POST(req: Request) {
       songs = mode === "ai" ? aiSongs : dedupe([...aiSongs.map((s) => ({ ...s, id: "", links: { youtube: "" } })), ...candidates.map((s) => ({ ...s, id: "", links: { youtube: "" } }))]);
       if (themeDropped) warnings.push(`テーマ「${filters.theme}」に合わない ${themeDropped} 曲を除外しました。`);
     } catch (e) {
-      if (mode === "ai") return bad(`AI抽出に失敗しました: ${(e as Error).message}`, 502);
-      warnings.push(`AI処理に失敗したため高速モードの結果を表示します: ${(e as Error).message}`);
+      if (mode === "ai") return bad(`AI抽出に失敗しました: ${err(e)}`, 502);
+      warnings.push(`AI処理に失敗したため高速モードの結果を表示します: ${err(e)}`);
     }
   } else if (filters.theme.trim()) {
     warnings.push("テーマ指定はAIのAPIキーがある場合のみ有効です。");
@@ -210,7 +229,7 @@ export async function POST(req: Request) {
             const id = useApi ? await searchVideo(q, keys.youtube!, signal) : await searchVideoKeyless(q, signal);
             if (id) s.url = `https://www.youtube.com/watch?v=${id}`;
           } catch (e) {
-            if (!warnings.some((w) => w.startsWith("YouTube検索"))) warnings.push(`YouTube検索エラー: ${(e as Error).message}`);
+            if (!warnings.some((w) => w.startsWith("YouTube検索"))) warnings.push(`YouTube検索エラー: ${err(e)}`);
           }
         }),
       );
@@ -227,7 +246,7 @@ export async function POST(req: Request) {
           if (v) { s.views = v.views; s.comments = v.comments; s.publishedAt = v.publishedAt; }
         }
       } catch (e) {
-        warnings.push(`再生数の取得に失敗: ${(e as Error).message}`);
+        warnings.push(`再生数の取得に失敗: ${err(e)}`);
       }
     }
   }

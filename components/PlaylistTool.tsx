@@ -13,6 +13,11 @@ export function PlaylistTool({ lastSongs }: { lastSongs: Song[] }) {
   const urls = useMemo(() => buildYouTubePlaylistUrls(ids), [ids]);
 
   const onFile = async (file: File) => {
+    // 巨大なファイルでブラウザが固まらないよう、読み込む前にサイズを確認する
+    if (file.size > 4_000_000) {
+      toast("ファイルは4MBまでです", "err");
+      return;
+    }
     try {
       if (/\.(xlsx|xls|ods)$/i.test(file.name)) {
         const XLSX = await import("xlsx");

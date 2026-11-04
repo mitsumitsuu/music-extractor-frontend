@@ -207,12 +207,13 @@ export function parseYouTube(url: string): { videoId?: string; listId?: string }
   try {
     const u = new URL(url.trim());
     const host = u.hostname.replace(/^www\.|^m\.|^music\./, "");
-    if (host === "youtu.be") return { videoId: u.pathname.slice(1, 12) || undefined, listId: u.searchParams.get("list") || undefined };
+    // ID は形式を厳密に検証する（API 呼び出しの URL に連結されるため、&key=… などの混入を防ぐ）
+    const vid = (x: string | null | undefined) => (x && /^[\w-]{11}$/.test(x) ? x : undefined);
+    const lid = (x: string | null) => (x && /^[\w-]{2,64}$/.test(x) ? x : undefined);
+    if (host === "youtu.be") return { videoId: vid(u.pathname.slice(1, 12)), listId: lid(u.searchParams.get("list")) };
     if (host === "youtube.com" || host === "youtube-nocookie.com") {
-      const v = u.searchParams.get("v");
-      const list = u.searchParams.get("list") || undefined;
       const m = u.pathname.match(/^\/(?:shorts|embed|live|v)\/([\w-]{11})/);
-      return { videoId: v || m?.[1] || undefined, listId: list };
+      return { videoId: vid(u.searchParams.get("v")) ?? vid(m?.[1]), listId: lid(u.searchParams.get("list")) };
     }
   } catch {
     /* not a URL */
